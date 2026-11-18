@@ -4,8 +4,16 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-const CAT_LABEL = { pessoa: 'Pessoa', lugar: 'Lugar', coisa: 'Coisa' };
-const CAT_TITLE = { pessoa: 'Quem sou eu?', lugar: 'Onde sou eu?', coisa: 'O que sou eu?' };
+// Preenchidos a partir das categorias do servidor (a IA pode criar categorias novas).
+let CAT_LABEL = {};
+let CAT_TITLE = {};
+const CAT_COLORS = { pessoa: 'var(--pessoa)', lugar: 'var(--lugar)', coisa: 'var(--coisa)' };
+const catColor = (slug) => {
+  if (CAT_COLORS[slug]) return CAT_COLORS[slug];
+  let h = 0;
+  for (const ch of String(slug)) h = (h * 37 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h} 50% 42%)`;
+};
 const DIFF_LABEL = { facil: 'Fácil', medio: 'Médio', dificil: 'Difícil' };
 const THEME_IDEAS = ['Copa do Mundo', 'Música brasileira', 'Mitologia grega', 'Espaço sideral', 'Desenhos animados', 'Comidas do Nordeste', 'Inventores', 'Capitais europeias'];
 
@@ -30,8 +38,12 @@ storage.set('perfil.userId', state.userId);
 
 // ---------- utilidades ----------
 
+// Versão web: mesmo endereço da página. APK: endereço salvo nas configurações ou o padrão do build.
+const isApp = Boolean(window.Capacitor?.isNativePlatform?.());
+const serverUrl = () => String(storage.get('perfil.server') || window.PERFIL_SERVER_URL || '').replace(/\/+$/, '');
+
 async function api(path, { method = 'GET', body } = {}) {
-  const res = await fetch(path, {
+  const res = await fetch(serverUrl() + path, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify({ userId: state.userId, ...body }) : undefined,
@@ -153,16 +165,19 @@ function cardHtml(view, { extraHints = view.card.extraHints ?? [], highlightFrom
   const c = view.card;
   const done = view.status && view.status !== 'playing';
   const rows = [];
-  for (let i = 0; i < c.totalClues; i++) {
-    const open = i < c.clues.length;
-    const isNew = open && i >= highlightFrom && !done;
-    rows.push(`<li class="clue ${open ? 'open' : 'locked'} ${isNew ? 'new' : ''}">
-      <span class="n">${i + 1}</span>
-      <span class="txt">${open ? esc(c.clues[i]) : '• • • • •'}</span></li>`);
+  c.clues.forEach((clue, i) => {
+    const isNew = i >= highlightFrom && !done;
+    rows.push(`<li class="clue open ${isNew ? 'new' : ''}"><span class="n">${i + 1}</span><span class="txt">${esc(clue)}</span></li>`);
+  });
+  extraHints.forEach((h) => rows.push(`<li class="clue open extra"><span class="n">+</span><span class="txt">${esc(h)}</span></li>`));
+  // Dicas fechadas ficam compactas (cartas da IA têm 20 dicas).
+  const locked = c.totalClues - c.clues.length;
+  if (locked > 0) {
+    const dots = Array.from({ length: locked }, (_, k) => `<span class="lock-dot">${c.clues.length + k + 1}</span>`).join('');
+    rows.push(`<li class="clue locked-row"><span class="muted">${locked} dica(s) fechada(s)</span><span class="lock-dots">${dots}</span></li>`);
   }
-  extraHints.forEach((h) => rows.push(`<li class="clue open extra"><span class="n">IA</span><span class="txt">${esc(h)}</span></li>`));
   return `<article class="card">
-    <div class="card-head" data-cat="${esc(c.category)}">
+    <div class="card-head" style="--cat:${catColor(c.category)}">
       <div><div class="label">${esc(CAT_LABEL[c.category] ?? c.category)}</div><div class="title">${esc(CAT_TITLE[c.category] ?? 'Quem sou eu?')}</div></div>
       <div class="badges">
         <span class="badge">${esc(DIFF_LABEL[c.difficulty] ?? c.difficulty)}</span>
@@ -272,7 +287,7 @@ async function onAiHint() {
       state.solo = await api(`/api/solo/${state.solo.sessionId}/ai-hint`, { method: 'POST', body: {} });
     });
     renderSolo();
-    toast('Dica extra da IA! (cada dica da IA custa 1 ponto no acerto)');
+    toast('Dica extra! (cada dica extra custa 1 ponto no acerto)');
   } catch (err) { toast(err.message, 'error'); }
 }
 
@@ -295,7 +310,8 @@ function fillCosts() {
   $('#tokenRules').innerHTML = `
     <li>Carta inteligente: ${r.costGenerateCard} tokens</li>
     <li>Desafio personalizado: ${r.costChallenge} tokens</li>
-    <li>Dica extra da IA: ${r.costAiHint} token</li>
+    <li>Dica extra: ${r.costAiHint} token</li>
+    <li>Carta que já existe no banco: grátis</li>
     <li>Acerte com até 3 dicas: +${r.rewardQuickGuess} token</li>
     <li>Bônus diário: +${r.dailyBonus} tokens</li>`;
   $('#themeIdeas').innerHTML = THEME_IDEAS.map((t) => `<button type="button" class="chip">${esc(t)}</button>`).join('');
@@ -308,9 +324,14 @@ $('#themeIdeas').addEventListener('click', (e) => {
 $('#genCardForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = Object.fromEntries(new FormData(e.target));
+  if (body.category === '__nova') {
+    body.category = '';
+    if (!body.newCategory?.trim()) return toast('Digite o nome da nova categoria.', 'error');
+  } else delete body.newCategory;
   try {
-    const { cardId } = await withLoading('A IA está criando sua carta…', () => api('/api/cards/generate', { method: 'POST', body }));
-    toast('Carta criada e salva no banco!');
+    const { cardId, reused } = await withLoading('Procurando no banco ou criando com a IA…', () => api('/api/cards/generate', { method: 'POST', body }));
+    toast(reused ? 'Achamos no banco uma carta assim que você ainda não jogou. Nenhum token gasto!' : 'Carta criada pela IA e salva no banco!');
+    if (!reused) await refreshCategories();
     state.challenge = null;
     go('solo', { autostart: false });
     await startSolo(cardId);
@@ -321,7 +342,8 @@ $('#challengeForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const body = Object.fromEntries(new FormData(e.target));
   try {
-    const { theme, cardIds } = await withLoading('A IA está montando seu desafio…', () => api('/api/challenges', { method: 'POST', body }));
+    const { theme, cardIds, reused } = await withLoading('Montando seu desafio…', () => api('/api/challenges', { method: 'POST', body }));
+    if (reused) toast('Desafio montado com cartas do banco. Nenhum token gasto!');
     state.challenge = { theme, cardIds, index: 0, score: 0 };
     state.solo = null;
     go('solo', { autostart: false });
@@ -344,9 +366,10 @@ async function loadBank() {
   $('#bankGrid').innerHTML = cards
     .map((c) => {
       const rate = c.timesPlayed ? Math.round((c.timesSolved / c.timesPlayed) * 100) : null;
-      return `<div class="bank-card" data-cat="${esc(c.category)}">
+      return `<div class="bank-card" style="border-top-color:${catColor(c.category)}">
         <div class="meta">
-          <span class="tag">${esc(CAT_LABEL[c.category])}</span>
+          <span class="tag">${esc(CAT_LABEL[c.category] ?? c.category)}</span>
+          <span class="tag">${c.totalClues} dicas</span>
           <span class="tag">${esc(DIFF_LABEL[c.difficulty] ?? c.difficulty)}</span>
           ${c.source === 'ia' ? '<span class="tag">✦ IA</span>' : ''}
           ${c.theme ? `<span class="tag">${esc(c.theme)}</span>` : ''}
@@ -377,7 +400,7 @@ $('#bankGrid').addEventListener('click', async (e) => {
 
 function socket() {
   if (state.socket) return state.socket;
-  const s = io();
+  const s = serverUrl() ? io(serverUrl()) : io();
   s.on('room:state', (room) => { state.room = room; renderRoom(); });
   s.on('connect', () => {
     // Reconecta automaticamente à sala depois de uma queda.
@@ -449,7 +472,7 @@ function renderRoom() {
         <div class="settings-row">
           <label>Rodadas<select id="setRounds" ${isHost ? '' : 'disabled'}>${[3, 5, 7, 10].map((n) => `<option ${n === room.settings.rounds ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
           <label>Categoria<select id="setCategory" ${isHost ? '' : 'disabled'}>
-            ${[['', 'Todas'], ['pessoa', 'Pessoa'], ['lugar', 'Lugar'], ['coisa', 'Coisa']].map(([v, l]) => `<option value="${v}" ${v === room.settings.category ? 'selected' : ''}>${l}</option>`).join('')}
+            ${[['', 'Todas'], ...Object.entries(CAT_LABEL)].map(([v, l]) => `<option value="${esc(v)}" ${v === room.settings.category ? 'selected' : ''}>${esc(l)}</option>`).join('')}
           </select></label>
           <label>Tempo por vez<select id="setTime" ${isHost ? '' : 'disabled'}>${[30, 45, 60, 90].map((n) => `<option value="${n}" ${n === room.settings.turnSeconds ? 'selected' : ''}>${n}s</option>`).join('')}</select></label>
         </div>
@@ -538,8 +561,47 @@ function renderRoom() {
 
 // ---------- inicialização ----------
 
+function applyCategories(categories) {
+  state.config.categories = categories;
+  CAT_LABEL = Object.fromEntries(categories.map((c) => [c.slug, c.label]));
+  CAT_TITLE = Object.fromEntries(categories.map((c) => [c.slug, c.question]));
+  $('#soloCategory').innerHTML = [['', 'Todas'], ...categories.map((c) => [c.slug, c.label])]
+    .map(([v, l]) => `<button data-cat="${esc(v)}" class="${v === state.soloCategory ? 'on' : ''}">${esc(l)}</button>`)
+    .join('');
+  $$('[data-cat-select]').forEach((sel) => {
+    const value = sel.value;
+    sel.innerHTML =
+      `<option value="">${esc(sel.dataset.catSelect)}</option>` +
+      categories.map((c) => `<option value="${esc(c.slug)}">${esc(c.label)}</option>`).join('') +
+      (sel.id === 'genCategory' ? '<option value="__nova">+ Nova categoria (a IA cria)</option>' : '');
+    sel.value = value;
+  });
+}
+async function refreshCategories() {
+  const { categories } = await api('/api/categories');
+  applyCategories(categories);
+}
+$('#genCategory').addEventListener('change', (e) => {
+  $('#newCategoryField').hidden = e.target.value !== '__nova';
+});
+
+$('#serverForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  storage.set('perfil.server', $('#serverInput').value.trim());
+  location.reload();
+});
+
 async function init() {
-  state.config = await api('/api/config');
+  $('#serverPanel').hidden = !isApp;
+  $('#serverInput').value = serverUrl();
+  try {
+    state.config = await api('/api/config');
+  } catch {
+    $('#serverPanel').hidden = false;
+    $$('.view').forEach((v) => (v.hidden = v.id !== 'view-home'));
+    return toast(isApp ? 'Não conectou ao servidor. Configure o endereço em "Servidor".' : 'Servidor indisponível.', 'error');
+  }
+  applyCategories(state.config.categories);
   const name = storage.get('perfil.name') || `Jogador ${Math.floor(Math.random() * 900 + 100)}`;
   await api('/api/users', { method: 'POST', body: { name } });
   fillCosts();

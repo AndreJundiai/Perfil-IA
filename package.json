@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node --env-file-if-exists=.env --no-warnings=ExperimentalWarning server/index.js",
     "dev": "node --watch --env-file-if-exists=.env --no-warnings=ExperimentalWarning server/index.js",
-    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js"
+    "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js",
+    "build:web": "node scripts/build-web.mjs",
+    "android:sync": "npm run build:web && npx cap sync android",
+    "android:build": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:release": "npm run android:sync && cd android && ./gradlew assembleRelease"
   },
   "repository": {
     "type": "git",
@@ -19,11 +23,16 @@
   "homepage": "https://github.com/AndreJundiai/Perfil-IA#readme",
   "dependencies": {
     "@anthropic-ai/sdk": "^1.10.0",
+    "@capacitor/android": "^7.6.10",
+    "@capacitor/core": "^7.6.10",
     "express": "^5.3.0",
     "socket.io": "^4.8.4"
   },
   "type": "module",
   "engines": {
     "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.6.10"
   }
 }

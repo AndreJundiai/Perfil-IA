@@ -169,12 +169,12 @@ export class Room {
     return this.players[this.turnIndex] ?? null;
   }
 
-  updateSettings(byId, settings) {
+  updateSettings(byId, settings, categories = ['pessoa', 'lugar', 'coisa']) {
     if (byId !== this.hostId) return { ok: false, error: 'Só o anfitrião pode mudar as regras.' };
     if (this.state !== 'lobby' && this.state !== 'finished') return { ok: false, error: 'Partida em andamento.' };
     const rounds = Number(settings.rounds);
     if (Number.isInteger(rounds) && rounds >= 1 && rounds <= 20) this.settings.rounds = rounds;
-    if (['', 'pessoa', 'lugar', 'coisa'].includes(settings.category)) this.settings.category = settings.category;
+    if (settings.category === '' || categories.includes(settings.category)) this.settings.category = settings.category;
     const secs = Number(settings.turnSeconds);
     if (Number.isInteger(secs) && secs >= 15 && secs <= 120) this.settings.turnSeconds = secs;
     return { ok: true };

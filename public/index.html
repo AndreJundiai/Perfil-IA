@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Perfil IA</title>
   <meta name="description" content="Descubra quem, o que ou qual lugar está escondido por trás das dicas." />
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topbar">
@@ -50,6 +50,14 @@
           <h3>Suas estatísticas</h3>
           <dl class="stats" id="myStats"></dl>
         </article>
+        <article class="panel" id="serverPanel" hidden>
+          <h3>Servidor</h3>
+          <p class="muted" style="font-size:14px">Endereço do servidor do Perfil IA (ex.: http://192.168.0.10:3000). A chave da IA fica nele, nunca no aplicativo.</p>
+          <form id="serverForm" class="row">
+            <input id="serverInput" inputmode="url" placeholder="http://…" />
+            <button class="btn">Salvar</button>
+          </form>
+        </article>
         <article class="panel">
           <h3>Ranking</h3>
           <ol class="ranking" id="ranking"></ol>
@@ -60,12 +68,7 @@
     <!-- PARTIDA INDIVIDUAL -->
     <section class="view" id="view-solo" hidden>
       <div class="toolbar">
-        <div class="segmented" id="soloCategory" role="group" aria-label="Categoria">
-          <button data-cat="" class="on">Todas</button>
-          <button data-cat="pessoa">Pessoa</button>
-          <button data-cat="lugar">Lugar</button>
-          <button data-cat="coisa">Coisa</button>
-        </div>
+        <div class="segmented" id="soloCategory" role="group" aria-label="Categoria"></div>
         <span class="challenge-tag" id="challengeTag" hidden></span>
         <button class="btn" id="newCardBtn">Nova carta</button>
       </div>
@@ -96,14 +99,12 @@
       <div class="grid2">
         <form class="panel" id="genCardForm">
           <h2>Carta inteligente</h2>
-          <p class="muted">A IA cria uma carta nova, salva no banco para todos jogarem. <b class="cost" data-cost="costGenerateCard"></b></p>
+          <p class="muted">A IA cria uma carta com 20 dicas, salva no banco para todos jogarem. Se já houver no banco uma carta assim que você ainda não jogou, ela é usada sem gastar tokens. <b class="cost" data-cost="costGenerateCard"></b></p>
           <label>Categoria
-            <select name="category">
-              <option value="">Surpresa</option>
-              <option value="pessoa">Pessoa</option>
-              <option value="lugar">Lugar</option>
-              <option value="coisa">Coisa</option>
-            </select>
+            <select name="category" id="genCategory" data-cat-select="Surpresa"></select>
+          </label>
+          <label id="newCategoryField" hidden>Nome da nova categoria
+            <input name="newCategory" maxlength="30" placeholder="ex.: Animal, Filme, Comida" />
           </label>
           <label>Tema (opcional)
             <input name="theme" maxlength="120" placeholder="ex.: música brasileira, espaço, anos 90" />
@@ -140,13 +141,8 @@
     <!-- BANCO DE CARTAS -->
     <section class="view" id="view-bank" hidden>
       <div class="toolbar">
-        <input id="bankSearch" placeholder="Buscar por tema…" />
-        <select id="bankCategory">
-          <option value="">Todas as categorias</option>
-          <option value="pessoa">Pessoa</option>
-          <option value="lugar">Lugar</option>
-          <option value="coisa">Coisa</option>
-        </select>
+        <input id="bankSearch" placeholder="Buscar por tema ou categoria…" />
+        <select id="bankCategory" data-cat-select="Todas as categorias"></select>
         <select id="bankSource">
           <option value="">Todas as origens</option>
           <option value="ia">Criadas pela IA</option>
@@ -161,7 +157,8 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="loading" id="loading" hidden><div class="spinner"></div><p id="loadingText">A IA está pensando…</p></div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script type="module" src="/app.js"></script>
+  <script src="config.js"></script>
+  <script src="vendor/socket.io.min.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
