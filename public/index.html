@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Perfil IA</title>
+  <meta name="description" content="Descubra quem, o que ou qual lugar está escondido por trás das dicas." />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <button class="brand" data-go="home" aria-label="Início">
+      <span class="brand-mark">?</span> Perfil <b>IA</b>
+    </button>
+    <nav class="nav">
+      <button data-go="solo">Sozinho</button>
+      <button data-go="multi">Multiplayer</button>
+      <button data-go="create">Criar com IA</button>
+      <button data-go="bank">Banco</button>
+    </nav>
+    <div class="wallet" title="Seus tokens">
+      <span class="coin">◆</span> <span id="tokenCount">–</span>
+    </div>
+  </header>
+
+  <main id="app">
+    <!-- INÍCIO -->
+    <section class="view" id="view-home">
+      <div class="hero">
+        <h1>Quem, o quê ou onde?</h1>
+        <p>Uma carta misteriosa, dez dicas. Quanto menos dicas você usar, mais pontos ganha.</p>
+        <label class="name-field">
+          Seu nome
+          <input id="nameInput" maxlength="24" placeholder="Como quer ser chamado?" />
+        </label>
+        <div class="hero-actions">
+          <button class="btn primary" data-go="solo">Jogar contra a IA</button>
+          <button class="btn" data-go="multi">Jogar com amigos</button>
+        </div>
+      </div>
+
+      <div class="grid3">
+        <article class="panel">
+          <h3>Seus tokens</h3>
+          <p class="big"><span class="coin">◆</span> <span id="tokenCount2">–</span></p>
+          <ul class="rules" id="tokenRules"></ul>
+          <button class="btn small" id="dailyBtn">Resgatar bônus diário</button>
+        </article>
+        <article class="panel">
+          <h3>Suas estatísticas</h3>
+          <dl class="stats" id="myStats"></dl>
+        </article>
+        <article class="panel">
+          <h3>Ranking</h3>
+          <ol class="ranking" id="ranking"></ol>
+        </article>
+      </div>
+    </section>
+
+    <!-- PARTIDA INDIVIDUAL -->
+    <section class="view" id="view-solo" hidden>
+      <div class="toolbar">
+        <div class="segmented" id="soloCategory" role="group" aria-label="Categoria">
+          <button data-cat="" class="on">Todas</button>
+          <button data-cat="pessoa">Pessoa</button>
+          <button data-cat="lugar">Lugar</button>
+          <button data-cat="coisa">Coisa</button>
+        </div>
+        <span class="challenge-tag" id="challengeTag" hidden></span>
+        <button class="btn" id="newCardBtn">Nova carta</button>
+      </div>
+      <div id="soloBoard"></div>
+    </section>
+
+    <!-- MULTIPLAYER -->
+    <section class="view" id="view-multi" hidden>
+      <div id="multiLobby" class="panel narrow">
+        <h2>Jogar com amigos</h2>
+        <p class="muted">Crie uma sala e compartilhe o código, ou entre com o código de um amigo.</p>
+        <button class="btn primary wide" id="createRoomBtn">Criar sala</button>
+        <div class="or">ou</div>
+        <form id="joinForm" class="row">
+          <input id="roomCodeInput" maxlength="4" placeholder="CÓDIGO" autocomplete="off" />
+          <button class="btn">Entrar</button>
+        </form>
+      </div>
+      <div id="roomView" hidden></div>
+    </section>
+
+    <!-- CRIAR COM IA -->
+    <section class="view" id="view-create" hidden>
+      <div class="ai-off panel" id="aiOff" hidden>
+        <h3>IA desativada neste servidor</h3>
+        <p class="muted">Configure <code>ANTHROPIC_API_KEY</code> no servidor para criar cartas e desafios com IA. Enquanto isso, você pode jogar com as cartas do banco.</p>
+      </div>
+      <div class="grid2">
+        <form class="panel" id="genCardForm">
+          <h2>Carta inteligente</h2>
+          <p class="muted">A IA cria uma carta nova, salva no banco para todos jogarem. <b class="cost" data-cost="costGenerateCard"></b></p>
+          <label>Categoria
+            <select name="category">
+              <option value="">Surpresa</option>
+              <option value="pessoa">Pessoa</option>
+              <option value="lugar">Lugar</option>
+              <option value="coisa">Coisa</option>
+            </select>
+          </label>
+          <label>Tema (opcional)
+            <input name="theme" maxlength="120" placeholder="ex.: música brasileira, espaço, anos 90" />
+          </label>
+          <label>Dificuldade
+            <select name="difficulty">
+              <option value="facil">Fácil</option>
+              <option value="medio" selected>Médio</option>
+              <option value="dificil">Difícil</option>
+            </select>
+          </label>
+          <button class="btn primary">Criar e jogar</button>
+        </form>
+
+        <form class="panel" id="challengeForm">
+          <h2>Desafio personalizado</h2>
+          <p class="muted">Escolha um tema e a IA monta uma sequência de 5 cartas só para você. <b class="cost" data-cost="costChallenge"></b></p>
+          <label>Tema
+            <input name="theme" maxlength="120" required placeholder="ex.: Copa do Mundo, mitologia grega, Nordeste" />
+          </label>
+          <label>Dificuldade
+            <select name="difficulty">
+              <option value="facil">Fácil</option>
+              <option value="medio" selected>Médio</option>
+              <option value="dificil">Difícil</option>
+            </select>
+          </label>
+          <div class="chips" id="themeIdeas"></div>
+          <button class="btn primary">Gerar desafio</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- BANCO DE CARTAS -->
+    <section class="view" id="view-bank" hidden>
+      <div class="toolbar">
+        <input id="bankSearch" placeholder="Buscar por tema…" />
+        <select id="bankCategory">
+          <option value="">Todas as categorias</option>
+          <option value="pessoa">Pessoa</option>
+          <option value="lugar">Lugar</option>
+          <option value="coisa">Coisa</option>
+        </select>
+        <select id="bankSource">
+          <option value="">Todas as origens</option>
+          <option value="ia">Criadas pela IA</option>
+          <option value="seed">Clássicas</option>
+        </select>
+      </div>
+      <p class="muted" id="bankCount"></p>
+      <div class="bank-grid" id="bankGrid"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="loading" id="loading" hidden><div class="spinner"></div><p id="loadingText">A IA está pensando…</p></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
