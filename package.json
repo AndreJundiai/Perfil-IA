@@ -4,6 +4,8 @@
   "description": "Jogo de adivinhação por dicas com cartas geradas por IA",
   "main": "server/index.js",
   "scripts": {
+    "setup": "node scripts/setup.mjs",
+    "check-ai": "node scripts/setup.mjs --check",
     "start": "node --env-file-if-exists=.env --no-warnings=ExperimentalWarning server/index.js",
     "dev": "node --watch --env-file-if-exists=.env --no-warnings=ExperimentalWarning server/index.js",
     "test": "node --no-warnings=ExperimentalWarning --test test/*.test.js",

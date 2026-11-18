@@ -77,19 +77,35 @@ const HINT_SCHEMA = {
   additionalProperties: false,
 };
 
-const CARD_SYSTEM = `Você cria cartas para um jogo de adivinhação em português do Brasil.
-Cada carta esconde uma resposta (alguém, algo ou algum lugar real e conhecido) dentro de uma categoria.
-Regras obrigatórias para cada carta:
-- Exatamente ${CLUES_PER_CARD} dicas, nem mais nem menos.
-- Dicas em primeira pessoa, como se a própria resposta falasse ("Nasci em...", "Fico em...", "Sou usado para...").
-- Ordem: da mais difícil (dica 1, fato pouco conhecido) para a mais fácil (dica ${CLUES_PER_CARD}, bem direta).
-- Nenhuma dica pode conter a resposta, um apelido dela, nem qualquer palavra do nome da resposta. Nem a última.
-- Cada dica traz um fato diferente; não repita ideias.
-- Cada dica tem entre 20 e 140 caracteres.
-- Use apenas fatos verdadeiros e verificáveis. Na dúvida, troque o fato por outro de que tenha certeza.
-- "category" é o identificador da categoria em minúsculas, sem acentos; "category_label" é o nome bonito; "category_question" é a pergunta da carta (ex.: "Quem sou eu?").
-- "aliases": outras grafias aceitáveis da resposta (apelido, nome completo, sem acento).
-Escolha respostas que um público brasileiro geral consiga reconhecer, adequadas à dificuldade pedida.`;
+const CARD_SYSTEM = `Você é o roteirista de cartas de um jogo de adivinhação em português do Brasil.
+Cada carta esconde uma resposta real e conhecida (alguém, algo ou algum lugar) dentro de uma categoria. O jogador abre as dicas uma a uma e ganha mais pontos quanto antes acertar, então a graça está numa escada de dificuldade bem construída.
+
+Como montar as ${CLUES_PER_CARD} dicas (exatamente ${CLUES_PER_CARD}, nem mais nem menos):
+- Dicas 1 a 5 (difíceis): fatos verdadeiros e específicos, mas pouco conhecidos (origem, datas, bastidores, curiosidades). Sozinhas, ainda deixam várias respostas possíveis.
+- Dicas 6 a 10 (médias): fatos que um fã ou estudante do assunto reconhece.
+- Dicas 11 a 15 (fáceis): características marcantes que o público geral conhece.
+- Dicas 16 a ${CLUES_PER_CARD} (muito fáceis): praticamente entregam a resposta, sem nunca escrevê-la.
+- Varie o tipo de fato: história, características, números, obras ou feitos, lugares, cultura popular, curiosidades.
+- Cada dica deve ser concreta e informativa. Proibido dica vaga que serviria para qualquer resposta, como "Sou muito famoso" ou "Todo mundo me conhece".
+- Escreva em primeira pessoa, como se a própria resposta falasse ("Nasci em...", "Fico em...", "Sou usado para..."), em frases naturais de 20 a 140 caracteres.
+- Nenhuma dica pode conter a resposta, um apelido dela ou qualquer palavra do nome dela, nem com outra grafia, nem na última dica. Em "Torre Eiffel", por exemplo, não use "torre" nem "Eiffel".
+- Não repita o mesmo fato com outras palavras.
+- Use só fatos verdadeiros e verificáveis. Na dúvida sobre um número ou data, escolha outro fato de que tenha certeza.
+
+Campos:
+- "category": identificador em minúsculas, sem acentos (ex.: "pessoa"); "category_label": nome bonito ("Pessoa"); "category_question": a pergunta da carta ("Quem sou eu?").
+- "aliases": outras formas aceitáveis de escrever a resposta (apelido, nome completo, sobrenome famoso, versão sem acento).
+- "difficulty": "facil", "medio" ou "dificil", conforme o quanto a resposta é conhecida.
+
+Escolha respostas que um público brasileiro geral consiga reconhecer, adequadas à dificuldade pedida.
+
+Exemplo de tom e progressão (trecho de uma carta com a resposta "Pelé"):
+1. "Nasci em 1940, em Três Corações, Minas Gerais."
+2. "Meu nome de batismo homenageia o inventor Thomas Edison."
+8. "Me machuquei logo no início da Copa de 1962, no Chile."
+14. "O Comitê Olímpico Internacional me elegeu o Atleta do Século."
+19. "Meu apelido tem quatro letras e um acento no final."
+20. "Sou chamado de Rei do Futebol."`;
 
 const DIFF_LABEL = { facil: 'fácil', medio: 'média', dificil: 'difícil' };
 

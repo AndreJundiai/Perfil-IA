@@ -1,6 +1,10 @@
 // Verificação de palpites: tolera acentos, maiúsculas, artigos e pequenos erros de digitação.
 
-const STOPWORDS = new Set(['o', 'a', 'os', 'as', 'um', 'uma', 'de', 'do', 'da', 'dos', 'das', 'the']);
+// Artigos e palavras de preenchimento ("acho que é o Pelé") que não mudam o palpite.
+const STOPWORDS = new Set([
+  'o', 'a', 'os', 'as', 'um', 'uma', 'de', 'do', 'da', 'dos', 'das', 'the',
+  'e', 'eh', 'acho', 'que', 'sera', 'seria', 'resposta', 'eu', 'chuto',
+]);
 
 export function normalize(text) {
   return String(text ?? '')

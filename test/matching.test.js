@@ -20,3 +20,9 @@ test('rejeita palpites errados ou vazios', () => {
   assert.ok(!isCorrectGuess('cafe', 'Chá')); // palavras curtas não têm tolerância
   assert.ok(!isCorrectGuess('Japao', 'Egito'));
 });
+
+test('aceita palpites com palavras de preenchimento', () => {
+  assert.ok(isCorrectGuess('acho que é o Pelé', 'Pelé'));
+  assert.ok(isCorrectGuess('é a Torre Eiffel', 'Torre Eiffel'));
+  assert.ok(!isCorrectGuess('acho que é o Zico', 'Pelé'));
+});

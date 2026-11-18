@@ -49,9 +49,17 @@ Requer **Node.js 22.13+** (o banco usa o módulo nativo `node:sqlite`).
 
 ```bash
 npm install
-cp .env.example .env    # opcional: coloque sua ANTHROPIC_API_KEY
-npm start               # http://localhost:3000
+npm run setup     # cola a chave da Anthropic (fica escondida), testa e salva no .env
+npm start         # http://localhost:3000
 ```
+
+### Chave da Anthropic
+
+1. Crie uma chave em https://console.anthropic.com/settings/keys (é preciso ter créditos na conta).
+2. No servidor, rode `npm run setup` e cole a chave. Ela não aparece na tela, é testada sem gastar tokens e é salva no `.env` com permissão só para o dono do arquivo. O script também gera um `ADMIN_TOKEN` para o relatório de consumo.
+3. Para conferir depois: `npm run check-ai`.
+
+Nunca cole a chave em chats, no código ou no APK: quem tiver a chave gasta os seus créditos.
 
 Sem `ANTHROPIC_API_KEY` o jogo funciona normalmente com as 24 cartas clássicas do banco. Só os recursos de IA ficam desativados.
 
@@ -112,5 +120,5 @@ test/          testes com node:test
 ## Observações
 
 - A identificação dos jogadores é simples: um ID aleatório salvo no navegador, sem login. Para produção, adicione autenticação antes de vender ou distribuir tokens de verdade.
-- As 24 cartas clássicas do banco têm 10 dicas; as criadas pela IA têm 20. A pontuação se ajusta ao número de dicas da carta.
+- As 24 cartas clássicas também têm 20 dicas e passam pelo mesmo validador das cartas da IA (`test/seed.test.js`). Bancos antigos são atualizados automaticamente ao iniciar o servidor, sem perder as estatísticas.
 - As chamadas à IA usam o fallback do servidor da Anthropic (`fallbacks: "default"`). Se o modelo principal recusar um pedido, outro modelo tenta responder.

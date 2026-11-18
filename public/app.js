@@ -22,10 +22,17 @@ const storage = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* armazenamento indisponível */ } },
 };
 
+// crypto.randomUUID só existe em HTTPS/localhost; pelo IP da rede local (http://192.168…) ele não existe.
+function newId() {
+  if (window.crypto?.randomUUID) return crypto.randomUUID();
+  const bytes = window.crypto?.getRandomValues ? crypto.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.random() * 256);
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('').replace(/^(.{8})(.{4})(.{4})(.{4})/, '$1-$2-$3-$4-');
+}
+
 const state = {
   config: null,
   user: null,
-  userId: storage.get('perfil.userId') || crypto.randomUUID(),
+  userId: storage.get('perfil.userId') || newId(),
   soloCategory: '',
   solo: null,
   lastRevealed: 0,
@@ -49,7 +56,11 @@ async function api(path, { method = 'GET', body } = {}) {
     body: body ? JSON.stringify({ userId: state.userId, ...body }) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error || `Erro ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   if (data.user) setUser(data.user);
   return data;
 }
@@ -105,7 +116,7 @@ document.addEventListener('click', (e) => {
 // ---------- início ----------
 
 async function loadHome() {
-  const { leaderboard } = await api('/api/leaderboard');
+  const { leaderboard } = await api('/api/leaderboard').catch(() => ({ leaderboard: [] }));
   $('#ranking').innerHTML = leaderboard.length
     ? leaderboard.map((r) => `<li><span>${esc(r.name)}</span><b>${r.totalScore}</b></li>`).join('')
     : '<li class="muted">Ninguém pontuou ainda.</li>';
@@ -117,8 +128,10 @@ $('#nameInput').addEventListener('input', (e) => {
   const name = e.target.value.trim();
   if (!name) return;
   nameTimer = setTimeout(async () => {
-    await api('/api/users', { method: 'POST', body: { name } });
+    await api('/api/users', { method: 'POST', body: { name } }).catch(() => {});
     storage.set('perfil.name', name);
+    // Atualiza o nome também na sala em que o jogador estiver.
+    if (state.room) socket().emit('room:join', { code: state.room.code, userId: state.userId }, () => {});
   }, 500);
 });
 
@@ -161,13 +174,16 @@ async function startSolo(cardId) {
   } catch (err) { toast(err.message, 'error'); }
 }
 
+// Faixa de dificuldade da dica: 1 = difícil … 4 = muito fácil.
+const tierOf = (i, total) => Math.min(4, Math.floor((i / Math.max(total, 1)) * 4) + 1);
+
 function cardHtml(view, { extraHints = view.card.extraHints ?? [], highlightFrom = 0 } = {}) {
   const c = view.card;
   const done = view.status && view.status !== 'playing';
   const rows = [];
   c.clues.forEach((clue, i) => {
     const isNew = i >= highlightFrom && !done;
-    rows.push(`<li class="clue open ${isNew ? 'new' : ''}"><span class="n">${i + 1}</span><span class="txt">${esc(clue)}</span></li>`);
+    rows.push(`<li class="clue open ${isNew ? 'new' : ''}" data-tier="${tierOf(i, c.totalClues)}"><span class="n">${i + 1}</span><span class="txt">${esc(clue)}</span></li>`);
   });
   extraHints.forEach((h) => rows.push(`<li class="clue open extra"><span class="n">+</span><span class="txt">${esc(h)}</span></li>`));
   // Dicas fechadas ficam compactas (cartas da IA têm 20 dicas).
@@ -176,16 +192,26 @@ function cardHtml(view, { extraHints = view.card.extraHints ?? [], highlightFrom
     const dots = Array.from({ length: locked }, (_, k) => `<span class="lock-dot">${c.clues.length + k + 1}</span>`).join('');
     rows.push(`<li class="clue locked-row"><span class="muted">${locked} dica(s) fechada(s)</span><span class="lock-dots">${dots}</span></li>`);
   }
-  return `<article class="card">
-    <div class="card-head" style="--cat:${catColor(c.category)}">
-      <div><div class="label">${esc(CAT_LABEL[c.category] ?? c.category)}</div><div class="title">${esc(CAT_TITLE[c.category] ?? 'Quem sou eu?')}</div></div>
-      <div class="badges">
-        <span class="badge">${esc(DIFF_LABEL[c.difficulty] ?? c.difficulty)}</span>
-        ${c.source === 'ia' ? '<span class="badge">✦ IA</span>' : ''}
-        ${c.theme ? `<span class="badge">${esc(c.theme)}</span>` : ''}
+  const pct = Math.round((c.clues.length / Math.max(c.totalClues, 1)) * 100);
+  return `<article class="card" style="--cat:${catColor(c.category)}">
+    <div class="card-head">
+      <div class="seal">${view.status === 'won' ? '✓' : view.status === 'lost' ? '✕' : done ? '★' : '?'}</div>
+      <div class="meta-h">
+        <div class="label">${esc(CAT_LABEL[c.category] ?? c.category)}</div>
+        <div class="title">${esc(CAT_TITLE[c.category] ?? 'Quem sou eu?')}</div>
+        <div class="badges">
+          <span class="badge">${esc(DIFF_LABEL[c.difficulty] ?? c.difficulty)}</span>
+          <span class="badge">${c.clues.length}/${c.totalClues} dicas</span>
+          ${c.source === 'ia' ? '<span class="badge">✦ IA</span>' : ''}
+          ${c.theme ? `<span class="badge">${esc(c.theme)}</span>` : ''}
+        </div>
       </div>
     </div>
+    <div class="progress"><span style="width:${pct}%"></span></div>
     <ol class="clues">${rows.join('')}</ol>
+    ${done ? '' : `<div class="tier-legend">
+      <span><i style="background:var(--tier-1)"></i>Difícil</span><span><i style="background:var(--tier-2)"></i>Média</span>
+      <span><i style="background:var(--tier-3)"></i>Fácil</span><span><i style="background:var(--tier-4)"></i>Quase entrega</span></div>`}
   </article>`;
 }
 
@@ -233,7 +259,8 @@ function renderSolo() {
         <h3>${won ? 'Você acertou!' : 'Não foi dessa vez'}</h3>
         <div class="muted">A resposta era</div>
         <div class="answer">${esc(s.answer)}</div>
-        ${won ? `<p><b>+${s.score} pontos</b> com ${s.revealed} dica(s)${s.tokenReward ? ` · <span class="coin">◆</span> +${s.tokenReward} token por acerto rápido` : ''}</p>` : ''}
+        ${won ? `<div class="score-pill">+${s.score} pontos com ${s.revealed} dica(s)</div>` : ''}
+        ${s.tokenReward ? `<p class="muted"><span class="coin">◆</span> +${s.tokenReward} token pelo acerto rápido</p>` : ''}
         <button class="btn primary wide" id="againBtn">${state.challenge ? $('#newCardBtn').textContent : 'Jogar outra carta'}</button>
       </div>`;
   }
@@ -251,12 +278,61 @@ function renderSolo() {
   }
 }
 
+// Evita cliques duplos: enquanto um pedido está em andamento, os botões da partida ficam bloqueados.
+let soloBusy = false;
 async function soloAction(action, body = {}) {
+  if (soloBusy || !state.solo) return null;
+  soloBusy = true;
+  $('#soloBoard .side')?.classList.add('busy');
   try {
+    const before = state.solo.status;
     state.solo = await api(`/api/solo/${state.solo.sessionId}/${action}`, { method: 'POST', body });
     renderSolo();
+    if (before === 'playing' && state.solo.status === 'won') confetti();
     return state.solo;
-  } catch (err) { toast(err.message, 'error'); }
+  } catch (err) {
+    if (err.status === 404) {
+      // O servidor reiniciou e a partida se perdeu: começa outra no lugar de travar.
+      toast('A partida expirou. Começando uma nova carta…', 'error');
+      state.solo = null;
+      startSolo();
+    } else toast(err.message, 'error');
+    return null;
+  } finally {
+    soloBusy = false;
+    $('#soloBoard .side')?.classList.remove('busy');
+  }
+}
+
+// Confete leve, sem bibliotecas.
+function confetti() {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const canvas = document.createElement('canvas');
+  canvas.id = 'confetti';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  ctx.scale(dpr, dpr);
+  const colors = ['#e2522c', '#7a4ff0', '#1c9a6a', '#c9970f', '#3567d8', '#ff9a3c'];
+  const parts = Array.from({ length: 140 }, () => ({
+    x: innerWidth / 2 + (Math.random() - 0.5) * 120, y: innerHeight * 0.35,
+    vx: (Math.random() - 0.5) * 14, vy: -Math.random() * 14 - 4,
+    s: Math.random() * 7 + 4, r: Math.random() * Math.PI, vr: (Math.random() - 0.5) * 0.3,
+    c: colors[Math.floor(Math.random() * colors.length)],
+  }));
+  const start = performance.now();
+  (function frame(t) {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of parts) {
+      p.vy += 0.35; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c;
+      ctx.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); ctx.restore();
+    }
+    if (t - start < 2600) requestAnimationFrame(frame);
+    else canvas.remove();
+  })(start);
 }
 
 async function onGuess(e) {
@@ -282,6 +358,7 @@ function afterSoloEnd(r) {
 }
 
 async function onAiHint() {
+  if (soloBusy) return;
   try {
     await withLoading('A IA está criando uma dica…', async () => {
       state.solo = await api(`/api/solo/${state.solo.sessionId}/ai-hint`, { method: 'POST', body: {} });
@@ -366,7 +443,9 @@ async function loadBank() {
   $('#bankGrid').innerHTML = cards
     .map((c) => {
       const rate = c.timesPlayed ? Math.round((c.timesSolved / c.timesPlayed) * 100) : null;
-      return `<div class="bank-card" style="border-top-color:${catColor(c.category)}">
+      return `<div class="bank-card">
+        <div class="bc-head" style="background:${catColor(c.category)}"></div>
+        <div class="bc-body">
         <div class="meta">
           <span class="tag">${esc(CAT_LABEL[c.category] ?? c.category)}</span>
           <span class="tag">${c.totalClues} dicas</span>
@@ -378,6 +457,7 @@ async function loadBank() {
         <div class="foot">
           <span>${c.timesPlayed} jogos${rate !== null ? ` · ${rate}% acertos` : ''}</span>
           <button class="btn small" data-play="${esc(c.id)}">Jogar</button>
+        </div>
         </div>
       </div>`;
     })
@@ -401,8 +481,16 @@ $('#bankGrid').addEventListener('click', async (e) => {
 function socket() {
   if (state.socket) return state.socket;
   const s = serverUrl() ? io(serverUrl()) : io();
-  s.on('room:state', (room) => { state.room = room; renderRoom(); });
+  s.on('room:state', (room) => {
+    const prev = state.room;
+    state.room = room;
+    renderRoom();
+    const r = room.lastResult;
+    if (r && r.winnerId === state.userId && prev?.state === 'playing' && room.state !== 'playing') confetti();
+  });
+  s.on('disconnect', () => { if (state.room) $('#connBanner').hidden = false; });
   s.on('connect', () => {
+    $('#connBanner').hidden = true;
     // Reconecta automaticamente à sala depois de uma queda.
     const code = state.room?.code || storage.get('perfil.room');
     if (code) s.emit('room:join', { code, userId: state.userId }, (r) => { if (!r.ok) leaveRoomUi(); });
@@ -419,6 +507,8 @@ function emit(event, payload = {}) {
 }
 
 $('#createRoomBtn').addEventListener('click', async () => {
+  // Esquece a sala antiga para a reconexão automática não entrar nela por engano.
+  storage.set('perfil.room', null);
   const r = await emit('room:create', { userId: state.userId });
   if (r?.ok) storage.set('perfil.room', r.code);
 });
@@ -439,6 +529,9 @@ function leaveRoomUi() {
 let timerInterval;
 function renderRoom() {
   const room = state.room;
+  // Guarda o palpite que estava sendo digitado: a tela é redesenhada a cada mudança na sala.
+  const typing = $('#mpGuess');
+  const draft = typing ? { value: typing.value, focused: document.activeElement === typing } : null;
   $('#multiLobby').hidden = Boolean(room);
   $('#roomView').hidden = !room;
   clearInterval(timerInterval);
@@ -457,8 +550,9 @@ function renderRoom() {
       </li>`)
     .join('')}</ul>`;
 
-  const header = `<div class="toolbar">
+  const header = `<div class="toolbar room-head">
       <div><div class="muted" style="font-size:13px">Código da sala</div><div class="room-code">${esc(room.code)}</div></div>
+      <span class="spacer"></span>
       <button class="btn" id="copyCodeBtn">Copiar convite</button>
       <button class="btn" id="leaveRoomBtn">Sair da sala</button>
     </div>`;
@@ -522,15 +616,16 @@ function renderRoom() {
         ${cardHtml(cardView, { extraHints: [], highlightFrom })}
         <div class="side">
           ${action}
-          <div class="panel"><h3>Placar</h3>${playersHtml}</div>
-          <div class="panel"><h3>Lances</h3><ul class="log">${[...room.log].reverse().map((l) => `<li class="${esc(l.type)}">${esc(l.text)}</li>`).join('')}</ul></div>
+          <div class="panel after-card"><h3>Placar</h3>${playersHtml}</div>
+          <div class="panel after-card"><h3>Lances</h3><ul class="log">${[...room.log].reverse().map((l) => `<li class="${esc(l.type)}">${esc(l.text)}</li>`).join('')}</ul></div>
         </div>
       </div>`;
   }
   $('#roomView').innerHTML = header + body;
 
   $('#copyCodeBtn').addEventListener('click', () => {
-    const text = `Bora jogar Perfil IA! Entre em ${location.origin} e use o código ${room.code}`;
+    const where = serverUrl() || location.origin;
+    const text = `Bora jogar Perfil IA! Entre em ${where} e use o código ${room.code}`;
     navigator.clipboard?.writeText(text).then(() => toast('Convite copiado!'), () => toast(text));
   });
   $('#leaveRoomBtn').addEventListener('click', async () => { await emit('room:leave'); leaveRoomUi(); });
@@ -546,13 +641,19 @@ function renderRoom() {
     if (guess) await emit('room:guess', { guess });
   });
   $('#mpPassBtn')?.addEventListener('click', () => emit('room:pass'));
-  $('#mpGuess')?.focus();
+  const input = $('#mpGuess');
+  if (input) {
+    if (draft && room.turnPlayerId === state.userId) input.value = draft.value;
+    if (!draft || draft.focused || !draft.value) input.focus();
+  }
 
   if (room.state === 'playing' && room.turnDeadline) {
     const tick = () => {
       const el = $('#turnTimer');
       if (!el) return clearInterval(timerInterval);
-      el.textContent = `${Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000))}s`;
+      const left = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
+      el.textContent = `${left}s`;
+      el.classList.toggle('low', left <= 10);
     };
     tick();
     timerInterval = setInterval(tick, 500);

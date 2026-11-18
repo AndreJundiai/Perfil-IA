@@ -109,11 +109,29 @@ export function openDb(path = process.env.DB_PATH || './data/perfil.db') {
   for (const c of BASE_CATEGORIES) {
     db.prepare('INSERT OR IGNORE INTO categories (slug, label, question) VALUES (?, ?, ?)').run(c.slug, c.label, c.question);
   }
-  const count = db.prepare('SELECT COUNT(*) AS n FROM cards').get().n;
-  if (count === 0) {
-    for (const card of SEED_CARDS) insertCard(db, { ...card, source: 'seed' });
-  }
+  syncSeedCards(db);
   return db;
+}
+
+// Insere as cartas clássicas que faltam e atualiza as antigas (ex.: 10 dicas → 20) sem perder estatísticas.
+function syncSeedCards(db) {
+  const update = db.prepare("UPDATE cards SET clues = ?, aliases = ?, difficulty = ? WHERE id = ? AND source = 'seed'");
+  const addKey = db.prepare('INSERT OR IGNORE INTO answer_keys (key, card_id) VALUES (?, ?)');
+  for (const card of SEED_CARDS) {
+    const existing = findDuplicate(db, card.answer);
+    if (!existing) {
+      insertCard(db, { ...card, source: 'seed' });
+      continue;
+    }
+    if (existing.source !== 'seed') continue;
+    if (JSON.stringify(existing.clues) !== JSON.stringify(card.clues) || JSON.stringify(existing.aliases) !== JSON.stringify(card.aliases)) {
+      update.run(JSON.stringify(card.clues), JSON.stringify(card.aliases), card.difficulty, existing.id);
+      for (const name of card.aliases) {
+        const key = answerKey(name);
+        if (key) addKey.run(key, existing.id);
+      }
+    }
+  }
 }
 
 // ---------- Categorias ----------
@@ -216,9 +234,13 @@ export function getCard(db, id) {
   return rowToCard(db.prepare('SELECT * FROM cards WHERE id = ?').get(id));
 }
 
-function cardFilter({ category, difficulty, theme, userId, excludeIds = [] }) {
+function cardFilter({ category, difficulty, theme, userId, source, excludeIds = [] }) {
   const params = [];
   let where = '1=1';
+  if (source) {
+    where += ' AND source = ?';
+    params.push(source);
+  }
   if (category) {
     where += ' AND category = ?';
     params.push(category);
@@ -244,8 +266,8 @@ function cardFilter({ category, difficulty, theme, userId, excludeIds = [] }) {
 
 // Cartas do banco que atendem ao pedido e que o jogador ainda não jogou.
 // Usado para não chamar a IA quando já existe conteúdo pronto.
-export function findReusableCards(db, { userId, category, difficulty, theme, limit = 1 }) {
-  const { where, params } = cardFilter({ category, difficulty, theme, userId });
+export function findReusableCards(db, { userId, category, difficulty, theme, source, limit = 1 }) {
+  const { where, params } = cardFilter({ category, difficulty, theme, userId, source });
   return db
     .prepare(`SELECT * FROM cards WHERE ${where} ORDER BY RANDOM() LIMIT ?`)
     .all(...params, limit)

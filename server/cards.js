@@ -55,6 +55,19 @@ export function clueRevealsAnswer(clue, answer, aliases = []) {
   });
 }
 
+// Dicas vagas, que servem para qualquer resposta e não ajudam o jogador.
+const VAGUE = [
+  /^sou (muito )?(famos[oa]|conhecid[oa]|importante|popular|especial|incrivel|unic[oa])\.?$/,
+  /^(todo mundo|muita gente|muitas pessoas) (me )?(conhece|sabe quem sou|ja ouviu falar de mim)\.?$/,
+  /^(voce|vc) (com certeza|certamente|ja) (me )?(conhece|sabe)/,
+  /^sou (uma? )?(pessoa|lugar|coisa|objeto)\.?$/,
+  /^(adivinhe|descubra|quem sou eu|o que sou eu)/,
+];
+export function isVagueClue(clue) {
+  const n = normalize(clue);
+  return String(clue).trim().split(/\s+/).length < 3 || VAGUE.some((re) => re.test(n));
+}
+
 function nearDuplicate(a, b) {
   const x = normalize(a);
   const y = normalize(b);
@@ -111,6 +124,7 @@ export function validateCard(raw, expected = {}) {
       if (clue.length < LIMITS.clueMin) errors.push(`Dica ${n} curta demais.`);
       if (clue.length > LIMITS.clueMax) errors.push(`Dica ${n} longa demais.`);
       if (answer && clueRevealsAnswer(clue, answer, aliases)) errors.push(`Dica ${n} revela a resposta.`);
+      if (clue.length >= LIMITS.clueMin && isVagueClue(clue)) errors.push(`Dica ${n} é vaga demais.`);
       for (let j = 0; j < i; j++) {
         if (nearDuplicate(clue, str(raw.clues[j]))) {
           errors.push(`Dica ${n} repete a dica ${j + 1}.`);

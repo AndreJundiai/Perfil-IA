@@ -2,42 +2,74 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1b1530" />
   <title>Perfil IA</title>
   <meta name="description" content="Descubra quem, o que ou qual lugar está escondido por trás das dicas." />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+    <symbol id="i-solo" viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M10 9.2a2.2 2.2 0 1 1 3 2c-.7.3-1 .8-1 1.5v.3M12 16.5v.01"/></symbol>
+    <symbol id="i-multi" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.6.2 4.5 2.2 4.5 4.9"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3c.6 4.4 2.6 6.4 7 7-4.4.6-6.4 2.6-7 7-.6-4.4-2.6-6.4-7-7 4.4-.6 6.4-2.6 7-7z"/><path d="M19 15.5c.2 1.6 1 2.3 2.5 2.5-1.5.2-2.3 1-2.5 2.5-.2-1.5-1-2.3-2.5-2.5 1.5-.2 2.3-.9 2.5-2.5z"/></symbol>
+    <symbol id="i-bank" viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="15" rx="2"/><path d="M8 3h11a2 2 0 0 1 2 2v13"/></symbol>
+  </svg>
+
   <header class="topbar">
     <button class="brand" data-go="home" aria-label="Início">
-      <span class="brand-mark">?</span> Perfil <b>IA</b>
+      <span class="brand-mark">?</span><span class="brand-name">Perfil <b>IA</b></span>
     </button>
-    <nav class="nav">
-      <button data-go="solo">Sozinho</button>
-      <button data-go="multi">Multiplayer</button>
-      <button data-go="create">Criar com IA</button>
-      <button data-go="bank">Banco</button>
+    <nav class="nav" aria-label="Navegação">
+      <button data-go="home" class="only-mobile"><svg><use href="#i-home"/></svg><span>Início</span></button>
+      <button data-go="solo"><svg><use href="#i-solo"/></svg><span>Sozinho</span></button>
+      <button data-go="multi"><svg><use href="#i-multi"/></svg><span>Amigos</span></button>
+      <button data-go="create"><svg><use href="#i-spark"/></svg><span>Criar</span></button>
+      <button data-go="bank"><svg><use href="#i-bank"/></svg><span>Banco</span></button>
     </nav>
     <div class="wallet" title="Seus tokens">
       <span class="coin">◆</span> <span id="tokenCount">–</span>
     </div>
   </header>
+  <div class="conn-banner" id="connBanner" hidden>Reconectando ao servidor…</div>
 
   <main id="app">
     <!-- INÍCIO -->
     <section class="view" id="view-home">
       <div class="hero">
-        <h1>Quem, o quê ou onde?</h1>
-        <p>Uma carta misteriosa, dez dicas. Quanto menos dicas você usar, mais pontos ganha.</p>
-        <label class="name-field">
-          Seu nome
-          <input id="nameInput" maxlength="24" placeholder="Como quer ser chamado?" />
-        </label>
-        <div class="hero-actions">
-          <button class="btn primary" data-go="solo">Jogar contra a IA</button>
-          <button class="btn" data-go="multi">Jogar com amigos</button>
+        <div class="hero-text">
+          <span class="eyebrow">Jogo de dicas com inteligência artificial</span>
+          <h1>Quem, o quê<br />ou onde?</h1>
+          <p>Uma carta misteriosa, até 20 dicas. Quanto menos dicas você precisar, mais pontos ganha.</p>
+          <label class="name-field">
+            Seu nome
+            <input id="nameInput" maxlength="24" placeholder="Como quer ser chamado?" />
+          </label>
+          <div class="hero-actions">
+            <button class="btn primary big-btn" data-go="solo">Jogar agora</button>
+            <button class="btn big-btn" data-go="multi">Jogar com amigos</button>
+          </div>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="mini-card c3"><span>?</span></div>
+          <div class="mini-card c2"><span>?</span></div>
+          <div class="mini-card c1">
+            <div class="mc-head">Quem sou eu?</div>
+            <div class="mc-line"><b>1</b> Nasci em 1940, em Minas Gerais.</div>
+            <div class="mc-line"><b>2</b> Meu nome homenageia um inventor.</div>
+            <div class="mc-line dim"><b>3</b> • • • • • •</div>
+            <div class="mc-line dim"><b>4</b> • • • • •</div>
+          </div>
         </div>
       </div>
+
+      <ol class="how">
+        <li><b>1</b><span>Abra uma dica de cada vez</span></li>
+        <li><b>2</b><span>Chute quando achar que sabe</span></li>
+        <li><b>3</b><span>Menos dicas, mais pontos</span></li>
+      </ol>
 
       <div class="grid3">
         <article class="panel">

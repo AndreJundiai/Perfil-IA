@@ -182,7 +182,8 @@ export function createApp({ db = store.openDb(), aiClient } = {}) {
     const theme = cleanTheme(req.body.theme);
 
     if (!category?.isNew) {
-      const [reuse] = store.findReusableCards(db, { userId: user.id, category: category?.slug, difficulty: asked, theme: theme || undefined });
+      // Só reaproveita cartas criadas pela IA: quem pede uma "carta inteligente" não deve receber uma clássica.
+      const [reuse] = store.findReusableCards(db, { userId: user.id, category: category?.slug, difficulty: asked, theme: theme || undefined, source: 'ia' });
       if (reuse) return res.json({ cardId: reuse.id, reused: true, user });
     }
     const { saved } = await withTokens(user, TOKEN_RULES.costGenerateCard, 'carta criada pela IA', () =>

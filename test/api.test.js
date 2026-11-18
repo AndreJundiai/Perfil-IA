@@ -82,6 +82,16 @@ test('carta da IA: 20 dicas, salva no banco, cobra tokens e registra consumo rea
   assert.ok(Math.abs(usage.totals.costUsd - costOf('claude-opus-5-5', { input_tokens: 1000, output_tokens: 2000 })) < 1e-9);
 });
 
+test('carta inteligente nunca devolve carta clássica', async () => {
+  const OTHER = 'test-user-0009';
+  await post('/api/users', { userId: OTHER, name: 'Nove' });
+  nextResponse = () => reply({ cards: [aiCard('Cadeado')] });
+  const r = await post('/api/cards/generate', { userId: OTHER, category: 'coisa' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const play = await post('/api/solo', { userId: OTHER, cardId: r.body.cardId });
+  assert.equal(play.body.card.source, 'ia');
+});
+
 test('reaproveita carta do banco em vez de chamar a IA', async () => {
   const OTHER = 'test-user-0002';
   await post('/api/users', { userId: OTHER, name: 'Outro' });
