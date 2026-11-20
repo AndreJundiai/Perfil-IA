@@ -6,6 +6,8 @@ import { join } from 'node:path';
 const out = 'www';
 rmSync(out, { recursive: true, force: true });
 cpSync('public', out, { recursive: true });
+// Regras do jogo, temas e gerador da Wikipédia: o app roda tudo isso sozinho, sem servidor.
+cpSync('shared', join(out, 'shared'), { recursive: true });
 mkdirSync(join(out, 'vendor'), { recursive: true });
 cpSync('node_modules/socket.io/client-dist/socket.io.min.js', join(out, 'vendor', 'socket.io.min.js'));
 

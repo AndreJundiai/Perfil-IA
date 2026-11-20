@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isCorrectGuess, normalize } from '../server/matching.js';
+import { isCorrectGuess, normalize } from '../shared/matching.js';
 
 test('normaliza acentos, artigos e pontuação', () => {
   assert.equal(normalize('  A Torre  Eiffel! '), 'torre eiffel');

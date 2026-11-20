@@ -95,7 +95,7 @@
         </article>
         <article class="panel" id="serverPanel" hidden>
           <h3>Servidor</h3>
-          <p class="muted" style="font-size:14px">Endereço do servidor do Perfil IA (ex.: http://192.168.0.10:3000). A chave da IA fica nele, nunca no aplicativo.</p>
+          <p class="muted" style="font-size:14px" id="serverStatus">Endereço do servidor do Perfil IA (ex.: http://192.168.0.10:3000). A chave da IA fica nele, nunca no aplicativo.</p>
           <form id="serverForm" class="row">
             <input id="serverInput" inputmode="url" placeholder="http://…" />
             <button class="btn">Salvar</button>
@@ -123,6 +123,7 @@
       <div id="multiLobby" class="panel narrow">
         <h2>Jogar com amigos</h2>
         <p class="muted">Crie uma sala e compartilhe o código, ou entre com o código de um amigo.</p>
+        <p class="offline-note" id="offlineMulti" hidden>Você está jogando sem servidor. Para jogar com amigos, informe o endereço de um servidor do Perfil IA no painel <b>Servidor</b> da tela inicial.</p>
         <button class="btn primary wide" id="createRoomBtn">Criar sala</button>
         <div class="or">ou</div>
         <form id="joinForm" class="row">

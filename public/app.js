@@ -40,6 +40,7 @@ const state = {
   challenge: null, // { theme, cardIds, index, score }
   room: null,
   socket: null,
+  mode: 'server', // 'server' ou 'local' (sem servidor)
 };
 storage.set('perfil.userId', state.userId);
 
@@ -49,7 +50,20 @@ storage.set('perfil.userId', state.userId);
 const isApp = Boolean(window.Capacitor?.isNativePlatform?.());
 const serverUrl = () => String(storage.get('perfil.server') || window.PERFIL_SERVER_URL || '').replace(/\/+$/, '');
 
+// Modo "local": sem servidor (ex.: APK sem endereço configurado). O próprio app responde às rotas.
+let localApi = null;
+async function useLocalMode() {
+  const { createLocalApi } = await import('./local.js');
+  localApi = createLocalApi(state.userId);
+  state.mode = 'local';
+}
+
 async function api(path, { method = 'GET', body } = {}) {
+  if (state.mode === 'local') {
+    const data = await localApi(path, { method, body: body ?? {} });
+    if (data?.user) setUser(data.user);
+    return data;
+  }
   const res = await fetch(serverUrl() + path, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
@@ -106,6 +120,7 @@ function go(view, { autostart = true } = {}) {
   if (view === 'bank') loadBank();
   if (view === 'solo' && !state.solo && autostart) startSolo();
   if (view === 'create') $('#aiOff').hidden = state.config?.aiAvailable;
+  if (view === 'multi') $('#offlineMulti').hidden = state.mode !== 'local';
   window.scrollTo({ top: 0 });
 }
 document.addEventListener('click', (e) => {
@@ -615,7 +630,14 @@ function emit(event, payload = {}) {
   }));
 }
 
+const needsServer = () => {
+  if (state.mode !== 'local') return false;
+  toast('O multiplayer precisa de um servidor. Configure o endereço na tela inicial.', 'error');
+  return true;
+};
+
 $('#createRoomBtn').addEventListener('click', async () => {
+  if (needsServer()) return;
   // Esquece a sala antiga para a reconexão automática não entrar nela por engano.
   storage.set('perfil.room', null);
   const r = await emit('room:create', { userId: state.userId });
@@ -623,6 +645,7 @@ $('#createRoomBtn').addEventListener('click', async () => {
 });
 $('#joinForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (needsServer()) return;
   const code = $('#roomCodeInput').value.trim().toUpperCase();
   if (code.length !== 4) return toast('O código tem 4 letras.', 'error');
   const r = await emit('room:join', { code, userId: state.userId });
@@ -805,18 +828,32 @@ $('#serverForm').addEventListener('submit', (e) => {
 async function init() {
   $('#serverPanel').hidden = !isApp;
   $('#serverInput').value = serverUrl();
-  try {
+  // No app sem servidor configurado, joga direto no modo local (temas, partidas e busca na internet).
+  const standalone = isApp || location.protocol === 'file:';
+  if (standalone && !serverUrl()) {
+    await useLocalMode();
+  } else {
+    try {
+      state.config = await api('/api/config');
+    } catch {
+      if (!standalone) {
+        $$('.view').forEach((v) => (v.hidden = v.id !== 'view-home'));
+        return toast('Servidor indisponível.', 'error');
+      }
+      await useLocalMode();
+      setTimeout(() => toast('Servidor fora do ar: jogando sem servidor (sem multiplayer e sem IA).', 'error'), 600);
+    }
+  }
+  if (state.mode === 'local') {
     state.config = await api('/api/config');
-  } catch {
     $('#serverPanel').hidden = false;
-    $$('.view').forEach((v) => (v.hidden = v.id !== 'view-home'));
-    return toast(isApp ? 'Não conectou ao servidor. Configure o endereço em "Servidor".' : 'Servidor indisponível.', 'error');
+    $('#serverStatus').textContent = 'Jogando sem servidor: temas, partidas e busca na internet funcionam no próprio celular. Para multiplayer e IA, informe um servidor.';
   }
   applyCategories(state.config.categories);
   const name = storage.get('perfil.name') || `Jogador ${Math.floor(Math.random() * 900 + 100)}`;
   await api('/api/users', { method: 'POST', body: { name } });
   fillCosts();
   go('home');
-  if (storage.get('perfil.room')) socket();
+  if (state.mode !== 'local' && storage.get('perfil.room')) socket();
 }
 init().catch((err) => toast(err.message, 'error'));

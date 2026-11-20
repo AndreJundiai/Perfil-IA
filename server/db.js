@@ -2,20 +2,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { CATALOG, THEMES, EXTRA_CATEGORIES } from './catalog.js';
-import { BASE_CATEGORIES, DIFFICULTIES, answerKey, slugify } from './cards.js';
+import { CATALOG, THEMES, EXTRA_CATEGORIES } from '../shared/catalog.js';
+import { BASE_CATEGORIES, DIFFICULTIES, answerKey, slugify } from '../shared/cards.js';
 
 export { DIFFICULTIES };
 
-// Custos e recompensas do sistema de tokens do jogo (créditos do jogador, não tokens da API).
-export const TOKEN_RULES = {
-  initial: 20,
-  dailyBonus: 5,
-  costGenerateCard: 2,
-  costChallenge: 5,
-  costAiHint: 1,
-  rewardQuickGuess: 1, // acertar usando até 3 dicas
-};
+export { TOKEN_RULES } from '../shared/rules.js';
+import { TOKEN_RULES } from '../shared/rules.js';
 
 function addColumnIfMissing(db, table, column, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);

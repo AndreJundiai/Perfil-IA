@@ -1,5 +1,11 @@
 // Regras do jogo: pontuação, partida individual e salas multiplayer.
-import { randomUUID } from 'node:crypto';
+// Funciona no Node e no navegador/app (crypto.randomUUID só existe em contexto seguro).
+function randomUUID() {
+  const c = globalThis.crypto;
+  if (c?.randomUUID) return c.randomUUID();
+  const b = c?.getRandomValues ? c.getRandomValues(new Uint8Array(16)) : Uint8Array.from({ length: 16 }, () => Math.random() * 256);
+  return [...b].map((x) => x.toString(16).padStart(2, '0')).join('').replace(/^(.{8})(.{4})(.{4})(.{4})/, '$1-$2-$3-$4-');
+}
 import { isCorrectGuess } from './matching.js';
 
 export const MAX_POINTS = 10;

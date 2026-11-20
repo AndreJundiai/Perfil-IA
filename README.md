@@ -90,7 +90,16 @@ O servidor precisa de acesso à internet para essa função. Os temas nativos fu
 
 ## App Android (APK)
 
-O app é feito com [Capacitor](https://capacitorjs.com): ele empacota a interface e conversa com o servidor, que guarda a chave da IA.
+O app é feito com [Capacitor](https://capacitorjs.com) e **funciona sozinho no celular, sem servidor**:
+
+| No celular, sem servidor | Precisa de servidor |
+| --- | --- |
+| 20 temas e 80 cartas nativas, sorteio de tema | Multiplayer online |
+| Partida individual, pontos e fichas (salvos no aparelho) | Cartas, desafios e dicas com IA |
+| Buscar na internet (Wikipédia, usando a internet do celular) | Ranking entre jogadores |
+| Banco de cartas | |
+
+Se você informar o endereço de um servidor no painel **Servidor** da tela inicial, o app passa a usar o servidor e libera multiplayer e IA. Se o servidor cair, o app volta sozinho para o modo sem servidor. Para isso, as regras do jogo ficam em `shared/` e são usadas pelo servidor e pelo app (`public/local.js` faz o papel do servidor no celular).
 
 **Pelo GitHub (sem instalar nada):** a cada push, o workflow `Android APK` (`.github/workflows/android.yml`) roda os testes e compila o APK. Baixe o arquivo `perfil-ia-apk` na aba *Actions* do repositório. Para embutir o endereço do servidor, rode o workflow manualmente (*Run workflow*) preenchendo `server_url`, ou defina a variável `PERFIL_SERVER_URL` do repositório.
 
@@ -118,11 +127,10 @@ Cobrem a verificação de palpites (acentos, apelidos, erros de digitação), as
 ```
 server/
   index.js     servidor Express + Socket.IO (API REST e salas em tempo real)
-  game.js      regras: pontuação, partida solo, salas multiplayer
-  matching.js  verificação tolerante de palpites
   ai.js        Claude API: geração, consumo real e controle de custos
-  cards.js     validação de cartas, categorias e duplicatas
   db.js        SQLite: cartas, categorias, jogadas, dicas, consumo, usuários
+shared/        regras usadas pelo servidor e pelo app sem servidor
+  game.js, matching.js, cards.js, rules.js
   seed.js      24 cartas clássicas
   themes.js    20 temas nativos (cartas prontas + assuntos extras para a internet)
   catalog.js   junta cartas clássicas e dos temas

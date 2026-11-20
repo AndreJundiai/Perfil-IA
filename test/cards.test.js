@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateCard, clueRevealsAnswer, CLUES_PER_CARD, slugify } from '../server/cards.js';
+import { validateCard, clueRevealsAnswer, CLUES_PER_CARD, slugify } from '../shared/cards.js';
 import { openDb, insertCard, findDuplicate, ensureCategory } from '../server/db.js';
 import { twentyClues } from './fixtures.js';
 

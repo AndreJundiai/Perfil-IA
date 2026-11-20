@@ -393,3 +393,5 @@ label input, label select { margin-top: 4px; color: var(--ink); }
 .source-link { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--muted); }
 .source-link a { color: var(--brand); }
 .challenge-end { margin-top: 12px; display: grid; gap: 8px; }
+
+.offline-note { background: color-mix(in srgb, var(--coin) 15%, transparent); border: 1px solid color-mix(in srgb, var(--coin) 40%, transparent); padding: 10px 12px; border-radius: 12px; font-size: 14px; }

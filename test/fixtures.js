@@ -1,4 +1,4 @@
-import { CLUES_PER_CARD } from '../server/cards.js';
+import { CLUES_PER_CARD } from '../shared/cards.js';
 
 const SUBJECTS = ['montanhas', 'oceanos', 'florestas', 'cidades', 'rios', 'desertos', 'ilhas', 'vulcões', 'geleiras', 'planícies',
   'cavernas', 'lagos', 'vales', 'savanas', 'pântanos', 'cânions', 'recifes', 'dunas', 'cachoeiras', 'penhascos'];

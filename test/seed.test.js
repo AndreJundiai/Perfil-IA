@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SEED_CARDS } from '../server/seed.js';
-import { validateCard, BASE_CATEGORIES, isVagueClue } from '../server/cards.js';
-import { answerKey } from '../server/cards.js';
+import { SEED_CARDS } from '../shared/seed.js';
+import { validateCard, BASE_CATEGORIES, isVagueClue } from '../shared/cards.js';
+import { answerKey } from '../shared/cards.js';
 
 test('todas as cartas nativas (clássicas e dos temas) passam no validador de qualidade', async () => {
-  const { CATALOG, EXTRA_CATEGORIES } = await import('../server/catalog.js');
+  const { CATALOG, EXTRA_CATEGORIES } = await import('../shared/catalog.js');
   const problems = [];
   for (const c of CATALOG) {
     const cat = [...BASE_CATEGORIES, ...EXTRA_CATEGORIES].find((b) => b.slug === c.category);
@@ -16,7 +16,7 @@ test('todas as cartas nativas (clássicas e dos temas) passam no validador de qu
 });
 
 test('cartas nativas não têm respostas nem apelidos repetidos', async () => {
-  const { CATALOG } = await import('../server/catalog.js');
+  const { CATALOG } = await import('../shared/catalog.js');
   const seen = new Map();
   for (const c of CATALOG) {
     for (const name of [c.answer, ...c.aliases]) {
@@ -50,5 +50,5 @@ test('banco antigo com cartas de 10 dicas é atualizado sem perder estatísticas
   assert.equal(updated.id, pele.id);
   assert.equal(updated.clues.length, 20);
   assert.equal(updated.timesPlayed, 7);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cards').get().n, (await import('../server/catalog.js')).CATALOG.length);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cards').get().n, (await import('../shared/catalog.js')).CATALOG.length);
 });

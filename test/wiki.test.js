@@ -1,10 +1,10 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildCardFromArticle, maskSentence, guessCategory, fetchArticle } from '../server/wiki.js';
+import { buildCardFromArticle, maskSentence, guessCategory, fetchArticle } from '../shared/wiki.js';
 import { createApp } from '../server/index.js';
 import { openDb } from '../server/db.js';
-import { THEMES } from '../server/catalog.js';
+import { THEMES } from '../shared/catalog.js';
 
 const garrincha = JSON.parse(readFileSync(new URL('./fixtures/wiki-garrincha.json', import.meta.url), 'utf8'));
 

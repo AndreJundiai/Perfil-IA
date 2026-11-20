@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SoloSession, Room, pointsFor } from '../server/game.js';
+import { SoloSession, Room, pointsFor } from '../shared/game.js';
 
 const card = (answer = 'Pelé', id = 'id-' + answer.length) => ({
   id, category: 'pessoa', answer, aliases: [], difficulty: 'facil', clues: Array.from({ length: 10 }, (_, i) => `dica ${i + 1}`),

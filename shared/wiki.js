@@ -4,9 +4,13 @@
 import { normalize, levenshtein } from './matching.js';
 import { CLUES_PER_CARD, validateCard, clueRevealsAnswer, isVagueClue } from './cards.js';
 
-const API = process.env.WIKI_API_URL || 'https://pt.wikipedia.org/w/api.php';
+// Este módulo roda no servidor (Node) e também dentro do app/navegador, sem servidor.
+const env = typeof process !== 'undefined' && process.env ? process.env : {};
+const IN_BROWSER = typeof window !== 'undefined';
+const API = env.WIKI_API_URL || 'https://pt.wikipedia.org/w/api.php';
 // A Wikimedia pede um User-Agent que identifique o cliente; WIKI_USER_AGENT permite incluir um contato.
-const USER_AGENT = process.env.WIKI_USER_AGENT || 'PerfilIA/1.0 (jogo de adivinhacao educativo)';
+// No navegador esse cabeçalho é proibido, e o próprio navegador se identifica.
+const USER_AGENT = env.WIKI_USER_AGENT || 'PerfilIA/1.0 (jogo de adivinhacao educativo)';
 
 export class WikiError extends Error {
   constructor(message, status = 502) {
@@ -16,10 +20,12 @@ export class WikiError extends Error {
 }
 
 async function getJson(params, fetchImpl) {
-  const url = `${API}?${new URLSearchParams({ format: 'json', formatversion: '2', ...params })}`;
+  // origin=* libera o acesso direto do navegador/app (CORS) para pedidos anônimos.
+  const url = `${API}?${new URLSearchParams({ format: 'json', formatversion: '2', origin: '*', ...params })}`;
   let res;
   try {
-    res = await fetchImpl(url, { headers: { 'User-Agent': USER_AGENT, 'Api-User-Agent': USER_AGENT }, signal: AbortSignal.timeout(12000) });
+    const headers = IN_BROWSER ? {} : { 'User-Agent': USER_AGENT, 'Api-User-Agent': USER_AGENT };
+    res = await fetchImpl(url, { headers, signal: AbortSignal.timeout(15000) });
   } catch {
     throw new WikiError('Não foi possível acessar a Wikipédia agora. Verifique a internet do servidor.');
   }
@@ -28,7 +34,7 @@ async function getJson(params, fetchImpl) {
 }
 
 /** Procura o artigo mais relevante e devolve o texto completo. */
-export async function fetchArticle(query, { fetchImpl = fetch } = {}) {
+export async function fetchArticle(query, { fetchImpl = (...a) => fetch(...a) } = {}) {
   const q = String(query ?? '').trim().slice(0, 100);
   if (q.length < 2) throw new WikiError('Digite o que você quer buscar.', 400);
   const search = await getJson({ action: 'query', list: 'search', srsearch: q, srlimit: '1', srnamespace: '0' }, fetchImpl);

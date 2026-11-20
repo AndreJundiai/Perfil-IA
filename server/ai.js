@@ -2,8 +2,8 @@
 // A chave da API só existe aqui no backend; o navegador e o APK nunca a recebem.
 import Anthropic from '@anthropic-ai/sdk';
 import * as store from './db.js';
-import { CLUES_PER_CARD, DIFFICULTIES, validateCard, clueRevealsAnswer, answerKey } from './cards.js';
-import { normalize, levenshtein } from './matching.js';
+import { CLUES_PER_CARD, DIFFICULTIES, validateCard, clueRevealsAnswer, answerKey } from '../shared/cards.js';
+import { normalize, levenshtein } from '../shared/matching.js';
 
 export class AiError extends Error {
   constructor(message, status = 502) {

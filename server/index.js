@@ -6,11 +6,11 @@ import { dirname, join } from 'node:path';
 import { timingSafeEqual } from 'node:crypto';
 import * as store from './db.js';
 import { TOKEN_RULES, DIFFICULTIES } from './db.js';
-import { CLUES_PER_CARD, slugify } from './cards.js';
-import { SoloSession, Room, makeRoomCode } from './game.js';
+import { CLUES_PER_CARD, slugify } from '../shared/cards.js';
+import { SoloSession, Room, makeRoomCode } from '../shared/game.js';
 import { createAi, AiError, aiLimits } from './ai.js';
-import { cardFromWeb, WikiError } from './wiki.js';
-import { CATALOG, themeBySlug } from './catalog.js';
+import { cardFromWeb, WikiError } from '../shared/wiki.js';
+import { CATALOG, themeBySlug } from '../shared/catalog.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -46,6 +46,8 @@ export function createApp({ db = store.openDb(), aiClient, webFetch = fetch } = 
   });
   app.use(express.json({ limit: '32kb' }));
   app.use(express.static(join(here, '..', 'public')));
+  // Regras compartilhadas: o app também as usa para jogar sem servidor.
+  app.use('/shared', express.static(join(here, '..', 'shared')));
   app.get('/vendor/socket.io.min.js', (_req, res) =>
     res.sendFile(join(here, '..', 'node_modules', 'socket.io', 'client-dist', 'socket.io.min.js'))
   );
