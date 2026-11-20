@@ -51,6 +51,7 @@ export class SoloSession {
       base.answer = this.card.answer;
       base.score = this.score;
       base.card.clues = this.card.clues; // ao fim mostramos todas as dicas
+      base.sourceUrl = this.card.sourceUrl ?? null; // atribuição da Wikipédia (só no fim: o link revela a resposta)
     }
     return base;
   }
@@ -288,6 +289,7 @@ export class Room {
       points: result?.points ?? 0,
       clues: this.card.clues,
       cardId: this.card.id,
+      sourceUrl: this.card.sourceUrl ?? null,
     };
     if (!result) this.log.push({ type: 'none', text: `Ninguém acertou. Era "${this.card.answer}".` });
     this.state = this.round >= this.settings.rounds ? 'finished' : 'roundEnd';

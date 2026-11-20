@@ -64,7 +64,7 @@ test('banco de cartas não revela respostas', async () => {
 
 test('carta da IA: 20 dicas, salva no banco, cobra tokens e registra consumo real', async () => {
   const before = await tokensOf(USER);
-  nextResponse = () => reply({ cards: [aiCard('Guarda-chuva', { aliases: ['Sombrinha'], category: 'objeto', category_label: 'Objeto', category_question: 'Que objeto sou eu?' })] });
+  nextResponse = () => reply({ cards: [aiCard('Chaleira', { aliases: ['Bule de apito'], category: 'objeto', category_label: 'Objeto', category_question: 'Que objeto sou eu?' })] });
   const r = await post('/api/cards/generate', { userId: USER, newCategory: 'Objeto', theme: 'chuva' });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.reused, false);
@@ -138,7 +138,7 @@ test('desafio: gera 5 cartas; repetir o tema reaproveita sem IA', async () => {
 
 test('dica extra fica salva e é reaproveitada sem nova chamada', async () => {
   const cardId = (await post('/api/cards/generate', { userId: 'test-user-0003', category: 'objeto', theme: 'chuva' })).body.cardId;
-  nextResponse = () => reply({ hint: 'Muita gente me esquece pendurado no braço da cadeira.' });
+  nextResponse = () => reply({ hint: 'Muita gente me deixa no fogão e esquece de desligar.' });
   const s1 = (await post('/api/solo', { userId: USER, cardId })).body;
   const h1 = await post(`/api/solo/${s1.sessionId}/ai-hint`, {});
   assert.equal(h1.status, 200, JSON.stringify(h1.body));
@@ -154,7 +154,7 @@ test('dica extra fica salva e é reaproveitada sem nova chamada', async () => {
 test('dica que entrega a resposta é rejeitada', async () => {
   const cardId = (await post('/api/solo', { userId: USER, category: 'objeto' })).body.card.id;
   db.prepare('DELETE FROM card_hints').run();
-  nextResponse = () => reply({ hint: 'Sou o guarda-chuva que você leva quando chove.' });
+  nextResponse = () => reply({ hint: 'Sou a chaleira que apita quando a água ferve.' });
   const s = (await post('/api/solo', { userId: USER, cardId })).body;
   const before = await tokensOf(USER);
   assert.equal((await post(`/api/solo/${s.sessionId}/ai-hint`, {})).status, 502);

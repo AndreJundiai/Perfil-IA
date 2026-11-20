@@ -8,6 +8,8 @@ O jogador recebe uma carta misteriosa com dicas, da mais difícil para a mais f�
 
 | Funcionalidade | Como funciona |
 | --- | --- |
+| **20 temas nativos** | Futebol, Esportes, Ciência, Arte, Literatura, Música brasileira, Música do mundo, Maravilhas, Cidades do mundo, Natureza do Brasil, Países, Cidades brasileiras, Comidas, Festas, Objetos, Tecnologia, Animais, Espaço, Folclore e Mitologia. São 80 cartas prontas com 20 dicas cada, que funcionam sem IA e sem internet. Clique num tema ou em **🎲 Sortear tema**. |
+| **Buscar na internet (sem IA)** | Digite qualquer assunto: o servidor lê o artigo da Wikipédia, transforma frases em dicas escondendo o nome e monta uma carta de 20 dicas. É grátis, não usa tokens, e cada tema tem 10 assuntos extras para gerar mais cartas com um clique. |
 | **Partida individual** | Você joga contra a IA: abre dicas e chuta quando quiser. Acertar com 1 dica vale 10 pontos, com 10 dicas vale 1. Cada palpite errado abre mais uma dica. |
 | **Multiplayer online** | Crie uma sala, compartilhe o código de 4 letras e jogue com até 8 amigos em tempo real. Na sua vez, você chuta ou pede mais uma dica; quem acertar primeiro leva os pontos da carta. |
 | **Cartas inteligentes** | A IA cria uma carta com exatamente 20 dicas (categoria, tema e dificuldade à sua escolha). Se o banco já tem uma carta compatível que você ainda não jogou, ela é usada sem chamar a IA e sem custo. |
@@ -75,6 +77,17 @@ Variáveis de ambiente:
 - `ADMIN_TOKEN`: libera o relatório `/api/admin/usage`
 - `CORS_ORIGINS`: origens extras liberadas, separadas por vírgula
 
+## Cartas da internet (Wikipédia)
+
+`server/wiki.js` busca o artigo pela API pública da Wikipédia em português (`pt.wikipedia.org`). As dicas saem do texto do artigo: as frases mais específicas, com datas e nomes, viram as dicas difíceis, e o resumo do começo vira as fáceis. O nome da resposta, os apelidos e as palavras do nome são trocados por "esta pessoa", "deste lugar" ou "isto". Frases que perdem o sentido com essa troca são descartadas. A carta só é salva se passar no mesmo validador das cartas da IA.
+
+- Assunto que já está no banco é reaproveitado, sem acessar a internet.
+- Termos ambíguos (por exemplo "Mercúrio") pedem um nome mais específico.
+- No fim da partida aparece o link do artigo, como pede a licença CC BY-SA da Wikipédia.
+- `WEB_USER_DAILY_LIMIT` (padrão 30) limita as cartas criadas por jogador por dia. `WIKI_USER_AGENT` identifica o seu servidor para a Wikimedia, e você pode incluir um e-mail de contato.
+
+O servidor precisa de acesso à internet para essa função. Os temas nativos funcionam sem internet.
+
 ## App Android (APK)
 
 O app é feito com [Capacitor](https://capacitorjs.com): ele empacota a interface e conversa com o servidor, que guarda a chave da IA.
@@ -110,7 +123,10 @@ server/
   ai.js        Claude API: geração, consumo real e controle de custos
   cards.js     validação de cartas, categorias e duplicatas
   db.js        SQLite: cartas, categorias, jogadas, dicas, consumo, usuários
-  seed.js      cartas clássicas iniciais
+  seed.js      24 cartas clássicas
+  themes.js    20 temas nativos (cartas prontas + assuntos extras para a internet)
+  catalog.js   junta cartas clássicas e dos temas
+  wiki.js      cria cartas a partir da Wikipédia, sem IA
 public/        interface web (HTML/CSS/JS, sem build)
 android/       projeto Android (Capacitor)
 scripts/       build-web.mjs: monta www/ para o APK

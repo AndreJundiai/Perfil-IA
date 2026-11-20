@@ -9,6 +9,8 @@ import { TOKEN_RULES, DIFFICULTIES } from './db.js';
 import { CLUES_PER_CARD, slugify } from './cards.js';
 import { SoloSession, Room, makeRoomCode } from './game.js';
 import { createAi, AiError, aiLimits } from './ai.js';
+import { cardFromWeb, WikiError } from './wiki.js';
+import { CATALOG, themeBySlug } from './catalog.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +27,7 @@ class HttpError extends Error {
   }
 }
 
-export function createApp({ db = store.openDb(), aiClient } = {}) {
+export function createApp({ db = store.openDb(), aiClient, webFetch = fetch } = {}) {
   const ai = createAi({ db, client: aiClient });
   const app = express();
   const origins = allowedOrigins();
@@ -60,7 +62,7 @@ export function createApp({ db = store.openDb(), aiClient } = {}) {
 
   const route = (fn) => (req, res) =>
     Promise.resolve(fn(req, res)).catch((err) => {
-      if (err instanceof AiError || err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+      if (err instanceof AiError || err instanceof HttpError || err instanceof WikiError) return res.status(err.status).json({ error: err.message });
       console.error(err);
       res.status(500).json({ error: 'Erro interno.' });
     });
@@ -110,6 +112,7 @@ export function createApp({ db = store.openDb(), aiClient } = {}) {
       categories: store.listCategories(db),
       difficulties: DIFFICULTIES,
       cluesPerCard: CLUES_PER_CARD,
+      webAvailable: true,
     });
   });
 
@@ -209,6 +212,84 @@ export function createApp({ db = store.openDb(), aiClient } = {}) {
     );
     const cardIds = [...reusable, ...saved].map((c) => c.id);
     res.json({ theme, cardIds, reused: false, user: store.getUser(db, user.id) });
+  }));
+
+  // ---------- Temas nativos ----------
+
+  app.get('/api/themes', (req, res) => {
+    const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined;
+    res.json({ themes: store.listThemes(db, userId) });
+  });
+
+  // Monta uma partida de até 5 cartas do tema ("random" sorteia um tema).
+  app.post('/api/themes/:slug/play', route((req, res) => {
+    const user = requireUser(req);
+    let theme = themeBySlug(req.params.slug);
+    if (req.params.slug === 'random') {
+      const options = store.listThemes(db, user.id).filter((t) => t.cards > 0);
+      const fresh = options.filter((t) => t.unplayed > 0);
+      const pool = fresh.length ? fresh : options;
+      theme = themeBySlug(pool[Math.floor(Math.random() * pool.length)]?.slug);
+    }
+    if (!theme) throw new HttpError(404, 'Tema não encontrado.');
+    const cardIds = store.themeCardIds(db, theme.name, user.id, 5);
+    if (!cardIds.length) throw new HttpError(404, 'Este tema ainda não tem cartas.');
+    res.json({ theme: { slug: theme.slug, name: theme.name, emoji: theme.emoji }, cardIds });
+  }));
+
+  // ---------- Cartas da internet (Wikipédia), sem a API da IA ----------
+
+  const webLimit = () => Number(process.env.WEB_USER_DAILY_LIMIT) || 30;
+  const webBusy = new Set();
+
+  async function createFromWeb(user, query, { category, theme }) {
+    if (store.webCallsToday(db, user.id) >= webLimit()) throw new HttpError(429, 'Limite diário de cartas da internet atingido.');
+    if (webBusy.has(user.id)) throw new HttpError(429, 'Aguarde a busca anterior terminar.');
+    webBusy.add(user.id);
+    try {
+      const card = await cardFromWeb(query, { category, theme, fetchImpl: webFetch });
+      const dup = store.findDuplicate(db, card.answer, card.aliases);
+      if (dup) return { card: dup, reused: true };
+      if (!store.getCategory(db, card.category)) throw new HttpError(400, 'Categoria inválida.');
+      return { card: store.insertCard(db, { ...card, authorId: user.id }).card, reused: false };
+    } finally {
+      webBusy.delete(user.id);
+    }
+  }
+
+  app.post('/api/cards/from-web', route(async (req, res) => {
+    const user = requireUser(req);
+    const query = typeof req.body.query === 'string' ? req.body.query.trim().slice(0, 100) : '';
+    if (query.length < 2) throw new HttpError(400, 'Digite o que você quer buscar.');
+    const category = req.body.category && store.getCategory(db, String(req.body.category)) ? String(req.body.category) : undefined;
+    // Se o assunto já está no banco, nem precisa buscar na internet.
+    const existing = store.findDuplicate(db, query);
+    if (existing) return res.json({ cardId: existing.id, reused: true });
+    const { card, reused } = await createFromWeb(user, query, { category, theme: null });
+    res.json({ cardId: card.id, reused });
+  }));
+
+  // Gera mais uma carta para um tema a partir da lista de assuntos do tema.
+  app.post('/api/themes/:slug/expand', route(async (req, res) => {
+    const user = requireUser(req);
+    const theme = themeBySlug(req.params.slug);
+    if (!theme) throw new HttpError(404, 'Tema não encontrado.');
+    const counts = {};
+    for (const c of [...theme.cards, ...CATALOG.filter((x) => x.theme === theme.name)]) counts[c.category] = (counts[c.category] ?? 0) + 1;
+    const category = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'coisa';
+    const pending = theme.wiki.filter((t) => !store.findDuplicate(db, t.replace(/\s*\([^)]*\)\s*$/, '')));
+    if (!pending.length) throw new HttpError(409, 'Todos os assuntos extras deste tema já viraram cartas.');
+    let lastError;
+    for (const topic of pending.sort(() => Math.random() - 0.5).slice(0, 3)) {
+      try {
+        const { card } = await createFromWeb(user, topic, { category, theme: theme.name });
+        return res.json({ cardId: card.id, topic, remaining: pending.length - 1 });
+      } catch (err) {
+        if (err.status === 429) throw err;
+        lastError = err;
+      }
+    }
+    throw lastError ?? new HttpError(502, 'Não foi possível gerar uma carta agora.');
   }));
 
   // ---------- Partida individual ----------

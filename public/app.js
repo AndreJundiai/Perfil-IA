@@ -116,6 +116,7 @@ document.addEventListener('click', (e) => {
 // ---------- início ----------
 
 async function loadHome() {
+  loadThemes();
   const { leaderboard } = await api('/api/leaderboard').catch(() => ({ leaderboard: [] }));
   $('#ranking').innerHTML = leaderboard.length
     ? leaderboard.map((r) => `<li><span>${esc(r.name)}</span><b>${r.totalScore}</b></li>`).join('')
@@ -202,7 +203,7 @@ function cardHtml(view, { extraHints = view.card.extraHints ?? [], highlightFrom
         <div class="badges">
           <span class="badge">${esc(DIFF_LABEL[c.difficulty] ?? c.difficulty)}</span>
           <span class="badge">${c.clues.length}/${c.totalClues} dicas</span>
-          ${c.source === 'ia' ? '<span class="badge">✦ IA</span>' : ''}
+          ${c.source === 'ia' ? '<span class="badge">✦ IA</span>' : c.source === 'web' ? '<span class="badge">🌐 Wikipédia</span>' : ''}
           ${c.theme ? `<span class="badge">${esc(c.theme)}</span>` : ''}
         </div>
       </div>
@@ -222,7 +223,8 @@ function renderSolo() {
   const tag = $('#challengeTag');
   tag.hidden = !state.challenge;
   if (state.challenge) {
-    tag.textContent = `Desafio "${state.challenge.theme}" · carta ${state.challenge.index + 1}/${state.challenge.cardIds.length} · ${state.challenge.score} pts`;
+    const label = state.challenge.emoji ? `${state.challenge.emoji} ${state.challenge.theme}` : `Desafio "${state.challenge.theme}"`;
+    tag.textContent = `${label} · carta ${state.challenge.index + 1}/${state.challenge.cardIds.length} · ${state.challenge.score} pts`;
   }
   $('#newCardBtn').textContent = state.challenge
     ? state.challenge.index + 1 < state.challenge.cardIds.length ? 'Próxima carta do desafio' : 'Encerrar desafio'
@@ -261,7 +263,11 @@ function renderSolo() {
         <div class="answer">${esc(s.answer)}</div>
         ${won ? `<div class="score-pill">+${s.score} pontos com ${s.revealed} dica(s)</div>` : ''}
         ${s.tokenReward ? `<p class="muted"><span class="coin">◆</span> +${s.tokenReward} token pelo acerto rápido</p>` : ''}
-        <button class="btn primary wide" id="againBtn">${state.challenge ? $('#newCardBtn').textContent : 'Jogar outra carta'}</button>
+        <div class="challenge-end">
+          <button class="btn primary wide" id="againBtn">${state.challenge ? $('#newCardBtn').textContent : 'Jogar outra carta'}</button>
+          ${state.challenge?.themeSlug ? `<button class="btn wide" id="expandBtn">🌐 Criar mais uma carta de ${esc(state.challenge.theme)} pela internet</button>` : ''}
+        </div>
+        ${sourceHtml(s.sourceUrl)}
       </div>`;
   }
   board.innerHTML = `<div class="board">${cardHtml(s, { highlightFrom: state.lastRevealed })}<div class="side">${side}</div></div>`;
@@ -275,7 +281,14 @@ function renderSolo() {
     $('#aiHintBtn').addEventListener('click', onAiHint);
   } else {
     $('#againBtn').addEventListener('click', () => $('#newCardBtn').click());
+    $('#expandBtn')?.addEventListener('click', () => expandTheme(state.challenge.themeSlug));
   }
+}
+
+// Atribuição exigida pela licença da Wikipédia (CC BY-SA).
+function sourceHtml(url) {
+  if (!url) return '';
+  return `<div class="source-link">Dicas baseadas na <a href="${esc(url)}" target="_blank" rel="noopener">Wikipédia</a> (CC BY-SA)</div>`;
 }
 
 // Evita cliques duplos: enquanto um pedido está em andamento, os botões da partida ficam bloqueados.
@@ -368,12 +381,108 @@ async function onAiHint() {
   } catch (err) { toast(err.message, 'error'); }
 }
 
+// ---------- temas ----------
+
+const hueOf = (slug) => {
+  let h = 0;
+  for (const ch of slug) h = (h * 41 + ch.charCodeAt(0)) % 360;
+  return h;
+};
+
+async function loadThemes() {
+  const { themes } = await api(`/api/themes?userId=${encodeURIComponent(state.userId)}`).catch(() => ({ themes: [] }));
+  state.themes = themes;
+  const total = themes.reduce((n, t) => n + t.cards, 0);
+  $('#themesInfo').textContent = `${themes.length} temas e ${total} cartas para jogar. Escolha um ou deixe a sorte decidir.`;
+  $('#themesGrid').innerHTML = themes
+    .map((t) => `<button class="theme-tile ${t.unplayed ? '' : 'done'}" data-theme="${esc(t.slug)}" style="--h:${hueOf(t.slug)}">
+        <span class="emoji">${esc(t.emoji)}</span>
+        <span><div class="tname">${esc(t.name)}</div>
+        <div class="tcount">${t.cards} cartas${t.unplayed < t.cards ? ` · ${t.unplayed} novas` : ''}</div></span>
+      </button>`)
+    .join('');
+}
+
+function startThemeChallenge(theme, cardIds) {
+  state.challenge = { theme: theme.name, themeSlug: theme.slug, emoji: theme.emoji, cardIds, index: 0, score: 0 };
+  state.solo = null;
+  go('solo', { autostart: false });
+  return startSolo(cardIds[0]);
+}
+
+async function playTheme(slug) {
+  try {
+    const { theme, cardIds } = await api(`/api/themes/${encodeURIComponent(slug)}/play`, { method: 'POST', body: {} });
+    await startThemeChallenge(theme, cardIds);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+$('#themesGrid').addEventListener('click', (e) => {
+  const tile = e.target.closest('[data-theme]');
+  if (tile) playTheme(tile.dataset.theme);
+});
+
+// Sorteio com uma pequena animação passando pelos temas.
+$('#randomThemeBtn').addEventListener('click', async () => {
+  const btn = $('#randomThemeBtn');
+  btn.disabled = true;
+  try {
+    const { theme, cardIds } = await api('/api/themes/random/play', { method: 'POST', body: {} });
+    const tiles = $$('#themesGrid .theme-tile');
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const steps = reduced || !tiles.length ? 0 : 14 + Math.floor(Math.random() * 6);
+    for (let i = 0; i < steps; i++) {
+      const t = tiles[Math.floor(Math.random() * tiles.length)];
+      t.classList.remove('spin');
+      void t.offsetWidth;
+      t.classList.add('spin');
+      await new Promise((r) => setTimeout(r, 60 + i * 12));
+    }
+    tiles.find((t) => t.dataset.theme === theme.slug)?.classList.add('spin');
+    toast(`Tema sorteado: ${theme.emoji} ${theme.name}!`);
+    await new Promise((r) => setTimeout(r, reduced ? 0 : 500));
+    await startThemeChallenge(theme, cardIds);
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function expandTheme(slug) {
+  try {
+    const { cardId, topic } = await withLoading('Lendo a Wikipédia e montando a carta…', () =>
+      api(`/api/themes/${encodeURIComponent(slug)}/expand`, { method: 'POST', body: {} })
+    );
+    toast(`Carta nova criada pela internet (${topic}). Boa sorte!`);
+    if (state.challenge) {
+      state.challenge.cardIds.push(cardId);
+      state.challenge.index = state.challenge.cardIds.length - 1;
+    }
+    await startSolo(cardId);
+  } catch (err) { toast(err.message, 'error'); }
+}
+
+$('#webForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(e.target));
+  try {
+    const { cardId, reused } = await withLoading('Lendo a Wikipédia e montando a carta…', () => api('/api/cards/from-web', { method: 'POST', body }));
+    toast(reused ? 'Essa carta já estava no banco!' : 'Carta criada a partir da Wikipédia!');
+    e.target.reset();
+    state.challenge = null;
+    go('solo', { autostart: false });
+    await startSolo(cardId);
+  } catch (err) { toast(err.message, 'error'); }
+});
+
 function nextChallengeCard() {
   const ch = state.challenge;
   ch.index++;
   if (ch.index >= ch.cardIds.length) {
-    toast(`Desafio "${ch.theme}" concluído com ${ch.score} pontos!`);
+    toast(`${ch.emoji ? `${ch.emoji} ${ch.theme}` : `Desafio "${ch.theme}"`} concluído com ${ch.score} pontos!`);
     state.challenge = null;
+    loadThemes();
     return startSolo();
   }
   startSolo(ch.cardIds[ch.index]);
@@ -450,7 +559,7 @@ async function loadBank() {
           <span class="tag">${esc(CAT_LABEL[c.category] ?? c.category)}</span>
           <span class="tag">${c.totalClues} dicas</span>
           <span class="tag">${esc(DIFF_LABEL[c.difficulty] ?? c.difficulty)}</span>
-          ${c.source === 'ia' ? '<span class="tag">✦ IA</span>' : ''}
+          ${c.source === 'ia' ? '<span class="tag">✦ IA</span>' : c.source === 'web' ? '<span class="tag">🌐 Wikipédia</span>' : ''}
           ${c.theme ? `<span class="tag">${esc(c.theme)}</span>` : ''}
         </div>
         <div class="first">“${esc(c.firstClue)}”</div>
@@ -599,6 +708,7 @@ function renderRoom() {
           <h3>${winner ? `${esc(winner.name)} acertou! +${r.points}` : 'Ninguém acertou'}</h3>
           <div class="muted">A resposta era</div>
           <div class="answer">${esc(r?.answer)}</div>
+          ${sourceHtml(r?.sourceUrl)}
           ${final ? `<p>🏆 <b>${esc(champion?.name)}</b> venceu a partida com ${champion?.score} pontos!</p>` : ''}
           ${isHost
             ? final

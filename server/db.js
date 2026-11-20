@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { SEED_CARDS } from './seed.js';
+import { CATALOG, THEMES, EXTRA_CATEGORIES } from './catalog.js';
 import { BASE_CATEGORIES, DIFFICULTIES, answerKey, slugify } from './cards.js';
 
 export { DIFFICULTIES };
@@ -99,6 +99,7 @@ export function openDb(path = process.env.DB_PATH || './data/perfil.db') {
   `);
   addColumnIfMissing(db, 'cards', 'answer_key', 'answer_key TEXT');
   addColumnIfMissing(db, 'cards', 'theme_key', 'theme_key TEXT');
+  addColumnIfMissing(db, 'cards', 'source_url', 'source_url TEXT');
   db.exec(`
     CREATE INDEX IF NOT EXISTS cards_category ON cards(category);
     CREATE INDEX IF NOT EXISTS cards_theme ON cards(theme_key);
@@ -106,7 +107,7 @@ export function openDb(path = process.env.DB_PATH || './data/perfil.db') {
     CREATE INDEX IF NOT EXISTS usage_day ON ai_usage(created_at);
   `);
 
-  for (const c of BASE_CATEGORIES) {
+  for (const c of [...BASE_CATEGORIES, ...EXTRA_CATEGORIES]) {
     db.prepare('INSERT OR IGNORE INTO categories (slug, label, question) VALUES (?, ?, ?)').run(c.slug, c.label, c.question);
   }
   syncSeedCards(db);
@@ -115,17 +116,19 @@ export function openDb(path = process.env.DB_PATH || './data/perfil.db') {
 
 // Insere as cartas clássicas que faltam e atualiza as antigas (ex.: 10 dicas → 20) sem perder estatísticas.
 function syncSeedCards(db) {
-  const update = db.prepare("UPDATE cards SET clues = ?, aliases = ?, difficulty = ? WHERE id = ? AND source = 'seed'");
+  const update = db.prepare("UPDATE cards SET clues = ?, aliases = ?, difficulty = ?, category = ? WHERE id = ? AND source = 'seed'");
+  const setTheme = db.prepare("UPDATE cards SET theme = ?, theme_key = ? WHERE id = ? AND source = 'seed'");
   const addKey = db.prepare('INSERT OR IGNORE INTO answer_keys (key, card_id) VALUES (?, ?)');
-  for (const card of SEED_CARDS) {
+  for (const card of CATALOG) {
     const existing = findDuplicate(db, card.answer);
     if (!existing) {
       insertCard(db, { ...card, source: 'seed' });
       continue;
     }
     if (existing.source !== 'seed') continue;
-    if (JSON.stringify(existing.clues) !== JSON.stringify(card.clues) || JSON.stringify(existing.aliases) !== JSON.stringify(card.aliases)) {
-      update.run(JSON.stringify(card.clues), JSON.stringify(card.aliases), card.difficulty, existing.id);
+    if ((existing.theme ?? null) !== (card.theme ?? null)) setTheme.run(card.theme ?? null, card.theme ? answerKey(card.theme) : null, existing.id);
+    if (JSON.stringify(existing.clues) !== JSON.stringify(card.clues) || JSON.stringify(existing.aliases) !== JSON.stringify(card.aliases) || existing.category !== card.category) {
+      update.run(JSON.stringify(card.clues), JSON.stringify(card.aliases), card.difficulty, card.category, existing.id);
       for (const name of card.aliases) {
         const key = answerKey(name);
         if (key) addKey.run(key, existing.id);
@@ -178,6 +181,7 @@ function rowToCard(row) {
     difficulty: row.difficulty,
     theme: row.theme,
     source: row.source,
+    sourceUrl: row.source_url ?? null,
     authorId: row.author_id,
     timesPlayed: row.times_played,
     timesSolved: row.times_solved,
@@ -207,8 +211,8 @@ export function insertCard(db, card) {
   if (dup) return { card: dup, created: false };
   const id = randomUUID();
   db.prepare(
-    `INSERT INTO cards (id, category, answer, answer_key, aliases, clues, difficulty, theme, theme_key, source, author_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO cards (id, category, answer, answer_key, aliases, clues, difficulty, theme, theme_key, source, author_id, source_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     card.category,
@@ -220,7 +224,8 @@ export function insertCard(db, card) {
     card.theme ?? null,
     card.theme ? answerKey(card.theme) : null,
     card.source ?? 'seed',
-    card.authorId ?? null
+    card.authorId ?? null,
+    card.sourceUrl ?? null
   );
   const addKey = db.prepare('INSERT OR IGNORE INTO answer_keys (key, card_id) VALUES (?, ?)');
   for (const name of [card.answer, ...(card.aliases ?? [])]) {
@@ -300,7 +305,7 @@ export function listCards(db, { category, source, search, limit = 50, offset = 0
     where += ' AND category = ?';
     params.push(category);
   }
-  if (source === 'ia' || source === 'seed') {
+  if (source === 'ia' || source === 'seed' || source === 'web') {
     where += ' AND source = ?';
     params.push(source);
   }
@@ -468,4 +473,44 @@ export function leaderboard(db, limit = 10) {
     .prepare('SELECT name, total_score AS totalScore, cards_solved AS cardsSolved FROM users WHERE total_score > 0 ORDER BY total_score DESC LIMIT ?')
     .all(limit)
     .map((r) => ({ ...r }));
+}
+
+// ---------- Temas ----------
+
+// Temas nativos com o total de cartas no banco e quantas o jogador ainda não jogou.
+export function listThemes(db, userId) {
+  const total = db.prepare('SELECT COUNT(*) AS n FROM cards WHERE theme_key = ?');
+  const fresh = db.prepare('SELECT COUNT(*) AS n FROM cards WHERE theme_key = ? AND id NOT IN (SELECT card_id FROM plays WHERE user_id = ?)');
+  return THEMES.map((t) => {
+    const key = answerKey(t.name);
+    return {
+      slug: t.slug,
+      name: t.name,
+      emoji: t.emoji,
+      cards: total.get(key).n,
+      unplayed: userId ? fresh.get(key, userId).n : total.get(key).n,
+      webTopics: t.wiki.length,
+    };
+  });
+}
+
+// Cartas de um tema para uma partida: primeiro as que o jogador não jogou, depois as demais.
+export function themeCardIds(db, themeName, userId, limit = 5) {
+  const key = answerKey(themeName);
+  const fresh = db
+    .prepare('SELECT id FROM cards WHERE theme_key = ? AND id NOT IN (SELECT card_id FROM plays WHERE user_id = ?) ORDER BY RANDOM() LIMIT ?')
+    .all(key, userId ?? '', limit)
+    .map((r) => r.id);
+  if (fresh.length >= limit) return fresh;
+  const rest = db
+    .prepare(`SELECT id FROM cards WHERE theme_key = ? ${fresh.length ? `AND id NOT IN (${fresh.map(() => '?').join(',')})` : ''} ORDER BY RANDOM() LIMIT ?`)
+    .all(key, ...fresh, limit - fresh.length)
+    .map((r) => r.id);
+  return [...fresh, ...rest];
+}
+
+export function webCallsToday(db, userId) {
+  return db
+    .prepare("SELECT COUNT(*) AS n FROM cards WHERE source = 'web' AND author_id = ? AND created_at >= date('now')")
+    .get(userId).n;
 }

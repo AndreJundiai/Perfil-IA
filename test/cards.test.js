@@ -54,7 +54,7 @@ test('detecta respostas duplicadas por nome ou apelido', () => {
   assert.ok(findDuplicate(db, 'pele'));
   assert.ok(findDuplicate(db, 'Edson Arantes do Nascimento'));
   assert.ok(findDuplicate(db, 'Novo nome', ['Tour Eiffel']));
-  assert.equal(findDuplicate(db, 'Guarda-chuva'), null);
+  assert.equal(findDuplicate(db, 'Chaleira'), null);
   const again = insertCard(db, { category: 'pessoa', answer: 'PELÉ', aliases: [], clues: twentyClues(), difficulty: 'facil' });
   assert.equal(again.created, false);
   assert.throws(() => insertCard(db, { answer: 'Sem categoria', clues: twentyClues() }));
@@ -63,7 +63,7 @@ test('detecta respostas duplicadas por nome ou apelido', () => {
 test('cria categorias novas', () => {
   const db = openDb(':memory:');
   assert.equal(slugify('Animais Marinhos'), 'animais-marinhos');
-  const c = ensureCategory(db, { slug: 'animal', label: 'Animal', question: 'Que animal sou eu?' });
+  const c = ensureCategory(db, { slug: 'planta', label: 'Planta', question: 'Que planta sou eu?' });
   assert.equal(c.source, 'ia');
-  assert.equal(ensureCategory(db, { slug: 'animal', label: 'Outro' }).label, 'Animal');
+  assert.equal(ensureCategory(db, { slug: 'planta', label: 'Outro' }).label, 'Planta');
 });

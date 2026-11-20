@@ -4,19 +4,21 @@ import { SEED_CARDS } from '../server/seed.js';
 import { validateCard, BASE_CATEGORIES, isVagueClue } from '../server/cards.js';
 import { answerKey } from '../server/cards.js';
 
-test('todas as cartas clássicas passam no validador de qualidade', () => {
+test('todas as cartas nativas (clássicas e dos temas) passam no validador de qualidade', async () => {
+  const { CATALOG, EXTRA_CATEGORIES } = await import('../server/catalog.js');
   const problems = [];
-  for (const c of SEED_CARDS) {
-    const cat = BASE_CATEGORIES.find((b) => b.slug === c.category);
+  for (const c of CATALOG) {
+    const cat = [...BASE_CATEGORIES, ...EXTRA_CATEGORIES].find((b) => b.slug === c.category);
     const r = validateCard({ ...c, category_label: cat.label, category_question: cat.question }, { category: c.category });
     if (!r.ok) problems.push(`${c.answer}: ${r.errors.join('; ')}`);
   }
   assert.deepEqual(problems, []);
 });
 
-test('cartas clássicas não têm respostas nem apelidos repetidos', () => {
+test('cartas nativas não têm respostas nem apelidos repetidos', async () => {
+  const { CATALOG } = await import('../server/catalog.js');
   const seen = new Map();
-  for (const c of SEED_CARDS) {
+  for (const c of CATALOG) {
     for (const name of [c.answer, ...c.aliases]) {
       const k = answerKey(name);
       assert.ok(!seen.has(k) || seen.get(k) === c.answer, `"${name}" repetido em ${c.answer} e ${seen.get(k)}`);
@@ -48,5 +50,5 @@ test('banco antigo com cartas de 10 dicas é atualizado sem perder estatísticas
   assert.equal(updated.id, pele.id);
   assert.equal(updated.clues.length, 20);
   assert.equal(updated.timesPlayed, 7);
-  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cards').get().n, SEED_CARDS.length);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM cards').get().n, (await import('../server/catalog.js')).CATALOG.length);
 });

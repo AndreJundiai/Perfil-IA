@@ -35,3 +35,9 @@ Responsável pela integração da IA ao Perfil IA.
 
 - O APK (Capacitor, pasta `android/`) só empacota a interface; ele conversa com o servidor, que guarda a chave.
 - Gerar com `npm run android:build` (requer Android SDK) ou pelo workflow `.github/workflows/android.yml`.
+
+## Sem IA
+
+- Os 20 temas de `server/themes.js` trazem cartas prontas; toda carta nova deve passar em `test/seed.test.js`.
+- `server/wiki.js` cria cartas a partir da Wikipédia sem chamar a IA. Prefira isso a gastar tokens quando o assunto for factual.
+- Cartas da Wikipédia guardam `source_url` e mostram a atribuição (CC BY-SA) só no fim da partida.

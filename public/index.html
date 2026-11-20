@@ -71,6 +71,17 @@
         <li><b>3</b><span>Menos dicas, mais pontos</span></li>
       </ol>
 
+      <section class="themes-block">
+        <div class="themes-head">
+          <div>
+            <h2>Temas</h2>
+            <p class="muted" id="themesInfo">Escolha um tema ou deixe a sorte decidir.</p>
+          </div>
+          <button class="btn primary big-btn" id="randomThemeBtn">🎲 Sortear tema</button>
+        </div>
+        <div class="themes-grid" id="themesGrid"></div>
+      </section>
+
       <div class="grid3">
         <article class="panel">
           <h3>Seus tokens</h3>
@@ -124,9 +135,21 @@
 
     <!-- CRIAR COM IA -->
     <section class="view" id="view-create" hidden>
+      <form class="panel web-panel" id="webForm">
+        <div class="web-text">
+          <h2>🌐 Buscar na internet <span class="free">grátis · sem IA</span></h2>
+          <p class="muted">Digite qualquer pessoa, lugar ou coisa. O jogo lê o artigo da Wikipédia e monta uma carta com 20 dicas, escondendo o nome. Não gasta tokens.</p>
+        </div>
+        <div class="web-fields">
+          <input name="query" maxlength="100" required placeholder="ex.: Garrincha, Lençóis Maranhenses, Arara-azul" />
+          <select name="category" data-cat-select="Detectar categoria"></select>
+          <button class="btn primary">Buscar e criar</button>
+        </div>
+      </form>
+
       <div class="ai-off panel" id="aiOff" hidden>
         <h3>IA desativada neste servidor</h3>
-        <p class="muted">Configure <code>ANTHROPIC_API_KEY</code> no servidor para criar cartas e desafios com IA. Enquanto isso, você pode jogar com as cartas do banco.</p>
+        <p class="muted">Configure a chave com <code>npm run setup</code> no servidor para criar cartas e desafios com IA. Enquanto isso, use os temas e a busca na internet acima.</p>
       </div>
       <div class="grid2">
         <form class="panel" id="genCardForm">
@@ -178,7 +201,8 @@
         <select id="bankSource">
           <option value="">Todas as origens</option>
           <option value="ia">Criadas pela IA</option>
-          <option value="seed">Clássicas</option>
+          <option value="seed">Nativas</option>
+          <option value="web">Da internet</option>
         </select>
       </div>
       <p class="muted" id="bankCount"></p>
